@@ -1,0 +1,7 @@
+
+# Bỏ qua thư mục và file của các môi trường phát triển
+node_modules/
+# Bỏ qua file cấu hình môi trường
+.env
+# Bỏ qua các file khóa package
+package-lock.json
