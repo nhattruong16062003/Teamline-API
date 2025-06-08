@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const chatSchema = new mongoose.Schema({
   name: String,
-  type: { type: String, enum: ['private', 'group'], default: 'private' },
+  type: { type: String, enum: ['private', 'public'], default: 'private' },
   members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   admins: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
