@@ -7,10 +7,7 @@ const User = require("../models/User");
 const Chat = require("../models/Chat");
 const Message = require("../models/Message");
 const Poll = require("../models/Poll");
-const {
-  emailValidator,
-  passwordValidator,
-} = require("../helpers/authentication");
+const { emailValidator, passwordValidator } = require("../helpers/validation");
 const sendEmail = require("../services/emailSender");
 const generateValidPassword = require("../helpers/passwordGenerator");
 const {
@@ -34,6 +31,9 @@ const register = async (req, res) => {
     const existingUser = await User.findOne({ email });
     if (existingUser)
       return res.status(409).json({ message: "email đã được sử dụng" });
+
+    //check them tai khoan duoc tao nhưng chưa được kích hoạt
+
     //Tạo mới user với dữ liệu đầu vào
     const newUser = new User({
       username,
@@ -69,10 +69,13 @@ const login = async (req, res) => {
     const existingUser = await User.findOne({ email });
     if (!existingUser)
       return res.status(409).json({ message: "Tài khoản không tồn tại" });
-
+    if (!existingUser.isVerify)
+      return res
+        .status(403)
+        .json({ message: "Tài khoản của bạn chưa được kích hoạt" });
     const isMatch = await bcrypt.compare(password, existingUser.password);
     if (!isMatch) {
-      return res.status(401).json({ message: "Sai mật khẩu" });
+      return res.status(400).json({ message: "Sai mật khẩu" });
     }
 
     const accessToken = jwt.sign(
@@ -86,7 +89,14 @@ const login = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
-    // Set refreshToken dưới dạng HttpOnly cookie
+    // Gửi access token trong cookie HttpOnly
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // true nếu deploy production
+      sameSite: "strict", // hoặc 'lax' tùy app
+      maxAge: 15 * 60 * 1000, // 15 phút
+    });
+    // Set refreshToken trong  cookie HttpOnly
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true, // JS không truy cập được
       secure: process.env.NODE_ENV === "production", // chỉ gửi cookie qua HTTPS khi deploy
@@ -96,7 +106,6 @@ const login = async (req, res) => {
 
     return res.status(200).json({
       message: "Login thành công",
-      accessToken,
       existingUser,
     });
   } catch (error) {
@@ -192,10 +201,88 @@ const resendVerificationEmail = async (req, res) => {
   }
 };
 
+const refreshToken = async (req, res) => {
+  try {
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) {
+      return res.status(401).json({ message: "Không có refresh token" });
+    }
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+      if (err) {
+        return res
+          .status(403)
+          .json({ message: "Refresh token không hợp lệ hoặc đã hết hạn" });
+      }
+
+      // Tao accesstoken moi
+      const accessToken = jwt.sign({ id: decoded.id }, process.env.JWT_SECRET, {
+        expiresIn: "15m",
+      });
+
+      // Tao refresh token moi
+      const newRefreshToken = jwt.sign(
+        { id: decoded.id },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+      res.cookie("refreshToken", newRefreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "Strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      return res.status(200).json({ accessToken });
+    });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Đã có lỗi xảy ra", error: error.message });
+  }
+};
+
+const getCurrentUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select("-password");
+    if (!user)
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+
+    return res.status(200).json({ user });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Đã có lỗi xảy ra", error: error.message });
+  }
+};
+
+const logout = async (req, res) => {
+  try {
+    console.log("da vao day");
+    // Xóa cookies
+    res.clearCookie("accessToken", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+    });
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+    });
+    return res.status(200).json({ message: "Logout thành công" });
+  } catch (error) {
+    console.error("Lỗi khi logout:", error);
+    return res.status(500).json({ message: "Có lỗi xảy ra khi logout" });
+  }
+};
+
 module.exports = {
   register,
   login,
   forgotPassword,
   verifyEmail,
   resendVerificationEmail,
+  refreshToken,
+  getCurrentUser,
+  logout,
 };
