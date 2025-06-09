@@ -1,0 +1,91 @@
+doctype html
+html
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport", content="width=device-width, initial-scale=1.0")
+    title Xác minh email
+    style.
+      body {
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        background: #f7f9fc;
+        color: #333;
+        margin: 0;
+        padding: 0;
+        line-height: 1.6;
+      }
+      .container {
+        max-width: 600px;
+        background: #fff;
+        margin: 40px auto;
+        padding: 40px;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        text-align: center;
+      }
+      h2 {
+        font-size: 24px;
+        color: #1a1a1a;
+        margin-bottom: 20px;
+        font-weight: 600;
+      }
+      p {
+        font-size: 16px;
+        color: #4a4a4a;
+        margin: 10px 0;
+      }
+      .button {
+        display: inline-block;
+        padding: 14px 30px;
+        background: #fff;
+        color: #007bff;
+        text-decoration: none;
+        border: 2px solid #007bff;
+        border-radius: 50px;
+        font-size: 16px;
+        font-weight: 500;
+        margin: 25px 0;
+        transition: all 0.3s ease;
+      }
+      .button:hover {
+        background: #007bff;
+        color: #fff;
+      }
+      .link {
+        word-break: break-all;
+        color: #007bff;
+        text-decoration: none;
+        font-size: 14px;
+      }
+      .link:hover {
+        text-decoration: underline;
+      }
+      .footer {
+        margin-top: 40px;
+        font-size: 14px;
+        color: #999;
+        border-top: 1px solid #eee;
+        padding-top: 20px;
+      }
+      @media only screen and (max-width: 600px) {
+        .container {
+          padding: 20px;
+          margin: 20px;
+        }
+        h2 {
+          font-size: 20px;
+        }
+        .button {
+          padding: 12px 24px;
+          font-size: 14px;
+        }
+      }
+  body
+    .container
+      h2 Chào #{name || 'bạn'},
+      p Cảm ơn bạn đã đăng ký tài khoản tại ứng dụng của chúng tôi.
+      p Để kích hoạt tài khoản, vui lòng xác minh email của bạn bằng cách nhấn vào nút bên dưới:
+      a.button(href=verifyUrl target="_blank") Xác minh tài khoản
+      p Nếu bạn không thể nhấn nút, hãy sao chép và dán đường link sau vào trình duyệt:
+      p
+        a.link(href=verifyUrl target="_blank")= verifyUrl
+      p.footer Nếu bạn không đăng ký tài khoản, bạn có thể bỏ qua email này.

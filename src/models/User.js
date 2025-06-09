@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema(
     avatar: { type: String, default: null },
     role: { type: String, enum: ["user", "admin"], default: "user" },
     cloudStorage: [{ type: String }],
+    isVerify: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
