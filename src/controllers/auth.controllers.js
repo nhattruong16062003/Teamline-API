@@ -2,7 +2,7 @@ const pug = require("pug");
 const path = require("path");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const crypto = require("crypto");
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const Chat = require("../models/Chat");
 const Message = require("../models/Message");
@@ -11,14 +11,21 @@ const {
   emailValidator,
   passwordValidator,
 } = require("../helpers/authentication");
-
 const sendEmail = require("../services/emailSender");
+const generateValidPassword = require("../helpers/passwordGenerator");
+const {
+  prepareSendVerificationEmail,
+} = require("../helpers/verificationEmail");
 
 const register = async (req, res) => {
+  const session = await mongoose.startSession();
   try {
     const { username, password, email } = req.body;
+    session.startTransaction();
     //Check dữ liệu đầu vào của email và password
     if (!emailValidator(email) || !passwordValidator(password)) {
+      await session.abortTransaction();
+      session.endSession();
       return res
         .status(400)
         .json({ message: "Email hoặc mật khẩu không hợp lệ" });
@@ -33,28 +40,17 @@ const register = async (req, res) => {
       password,
       email,
     });
-    const savedUser = await newUser.save();
+    const savedUser = await newUser.save({ session });
 
-    verifyToken = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
-      expiresIn: "1d",
-    });
-    const html = pug.renderFile(
-      path.join(__dirname, "../views", "verify-email.pug"),
-      {
-        name: username,
-        verifyUrl: `${process.env.URL_BE}/api/auth/verify-email?token=${verifyToken}`,
-      }
-    );
-    //Gửi email xác thực tài khoản
-    await sendEmail({
-      to: email,
-      subject: "Xác minh tài khoản của bạn",
-      html,
-    });
+    await prepareSendVerificationEmail(req, res, savedUser);
+    await session.commitTransaction();
+    session.endSession();
     return res
       .status(201)
       .json({ message: "Tài khoản được tạo thành công", user: savedUser });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     return res.status(500).json({
       message: "Đã xảy ra lỗi, vui lòng thử lại sau",
       error: error.message,
@@ -90,10 +86,17 @@ const login = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
+    // Set refreshToken dưới dạng HttpOnly cookie
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true, // JS không truy cập được
+      secure: process.env.NODE_ENV === "production", // chỉ gửi cookie qua HTTPS khi deploy
+      sameSite: "Strict", // chống CSRF (nếu frontend khác domain có thể dùng "Lax")
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
+    });
 
     return res.status(200).json({
       message: "Login thành công",
-      token: { accessToken, refreshToken },
+      accessToken,
       existingUser,
     });
   } catch (error) {
@@ -113,7 +116,7 @@ const forgotPassword = async (req, res) => {
     const existingUser = await User.findOne({ email });
     if (!existingUser)
       return res.status(409).json({ message: "Tài khoản không tồn tại" });
-    const newPassword = crypto.randomBytes(6).toString("hex");
+    const newPassword = generateValidPassword();
     existingUser.password = newPassword;
     await existingUser.save();
     const html = pug.renderFile(
@@ -180,26 +183,7 @@ const resendVerificationEmail = async (req, res) => {
     if (existingUser.isVerify) {
       return res.status(200).json({ message: "Tài khoản đã được xác minh." });
     }
-    const verifyToken = jwt.sign(
-      { id: existingUser._id },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "1d",
-      }
-    );
-    const html = pug.renderFile(
-      path.join(__dirname, "../views", "verify-email.pug"),
-      {
-        name: existingUser.username,
-        verifyUrl: `${process.env.URL_BE}/api/auth/verify-email?token=${verifyToken}`,
-      }
-    );
-    //Gửi email xác thực tài khoản
-    await sendEmail({
-      to: email,
-      subject: "Xác minh tài khoản của bạn",
-      html,
-    });
+    await prepareSendVerificationEmail(req, res, existingUser);
     return res.status(200).json({ message: "Email xác minh đã được gửi lại." });
   } catch (error) {
     return res

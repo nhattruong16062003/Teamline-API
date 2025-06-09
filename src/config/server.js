@@ -1,6 +1,7 @@
 const express = require("express");
 const morgan = require("morgan");
 const cors = require("cors");
+const cookieParser = require("cookie-parser");
 const indexRoute = require("../routes/index.routes");
 const connectDB = require("../config/db");
 const app = express();
@@ -8,6 +9,9 @@ const app = express();
 app.use(express.json());
 require("dotenv").config();
 app.use(morgan("dev"));
+
+//Cấu hình parser để đọc cookie do client gửi xuống (gửi refreshtoken)
+app.use(cookieParser());
 
 //Cấu hình cros để be có thể nhận request từ fe
 app.use(
