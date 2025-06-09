@@ -11,7 +11,7 @@ const { authenticateToken } = require("../middleware/jwt.middleware");
 
 router.post("/register", register);
 router.get("/verify-email", verifyEmail);
-router.post("/login", [authenticateToken], login);
+router.post("/login", login);
 router.post("/forgot-password", forgotPassword);
 router.post("/resend-verify", resendVerificationEmail);
 

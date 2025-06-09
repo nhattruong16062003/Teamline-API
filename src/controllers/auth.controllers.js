@@ -1,6 +1,8 @@
 const pug = require("pug");
 const path = require("path");
+const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const User = require("../models/User");
 const Chat = require("../models/Chat");
 const Message = require("../models/Message");
@@ -22,8 +24,8 @@ const register = async (req, res) => {
         .json({ message: "Email hoặc mật khẩu không hợp lệ" });
     }
     //Check xem user đã tồn tại chưa?
-    const exitedUser = await User.findOne({ email });
-    if (exitedUser)
+    const existingUser = await User.findOne({ email });
+    if (existingUser)
       return res.status(409).json({ message: "email đã được sử dụng" });
     //Tạo mới user với dữ liệu đầu vào
     const newUser = new User({
@@ -60,26 +62,83 @@ const register = async (req, res) => {
   }
 };
 
-const login = (req, res) => {
-  // const { email, password } = req.body;
-  // User.findOne({ email })
-  //   .then((user) => {
-  //     if (!user) {
-  //       return res.status(404).json({ message: "User not found" });
-  //     }
-  //     if (user.password != password) {
-  //       return res.status(401).json({ message: "Invalid password" });
-  //     }
-  //     res.status(200).json({ message: "User logged in successfully", user });
-  //   })
-  //   .catch((error) => {
-  //     console.error("Error finding user:", error);
-  //     res.status(500).json({ message: "Error finding user", error });
-  //   });
-  res.status(200).json({ message: "User logged in successfully", user });
+const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!emailValidator(email) || !passwordValidator(password)) {
+      return res
+        .status(400)
+        .json({ message: "Email hoặc mật khẩu không hợp lệ" });
+    }
+    const existingUser = await User.findOne({ email });
+    if (!existingUser)
+      return res.status(409).json({ message: "Tài khoản không tồn tại" });
+
+    const isMatch = await bcrypt.compare(password, existingUser.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Sai mật khẩu" });
+    }
+
+    const accessToken = jwt.sign(
+      { id: existingUser._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    const refreshToken = jwt.sign(
+      { id: existingUser._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.status(200).json({
+      message: "Login thành công",
+      token: { accessToken, refreshToken },
+      existingUser,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Đã có lỗi xảy ra, hãy thử lại sau",
+      error: error.message,
+    });
+  }
 };
 
-const forgotPassword = (req, res) => {};
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!emailValidator(email)) {
+      return res.status(400).json({ message: "Email không hợp lệ" });
+    }
+    const existingUser = await User.findOne({ email });
+    if (!existingUser)
+      return res.status(409).json({ message: "Tài khoản không tồn tại" });
+    const newPassword = crypto.randomBytes(6).toString("hex");
+    existingUser.password = newPassword;
+    await existingUser.save();
+    const html = pug.renderFile(
+      path.join(__dirname, "../views", "reset-password.pug"),
+      {
+        name: existingUser.name,
+        newPassword: newPassword,
+      }
+    );
+    await sendEmail({
+      to: existingUser.email,
+      subject: "Đặt lại mật khẩu",
+      html,
+    });
+
+    return res
+      .status(200)
+      .json({ message: "Mật khẩu mới đã được gửi qua email." });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Đã có lỗi xảy ra, hãy thử lại sau",
+      error: error.message,
+    });
+  }
+};
 
 const verifyEmail = async (req, res) => {
   try {
@@ -114,15 +173,15 @@ const resendVerificationEmail = async (req, res) => {
     if (!emailValidator(email)) {
       return res.status(400).json({ message: "Email không hợp lệ" });
     }
-    const exitingUser = await User.findOne({ email });
-    if (!exitingUser) {
+    const existingUser = await User.findOne({ email });
+    if (!existingUser) {
       return res.status(404).json({ message: "Tài khoản không tồn tại" });
     }
-    if (exitingUser.isVerify) {
+    if (existingUser.isVerify) {
       return res.status(200).json({ message: "Tài khoản đã được xác minh." });
     }
     const verifyToken = jwt.sign(
-      { id: exitingUser._id },
+      { id: existingUser._id },
       process.env.JWT_SECRET,
       {
         expiresIn: "1d",
@@ -131,7 +190,7 @@ const resendVerificationEmail = async (req, res) => {
     const html = pug.renderFile(
       path.join(__dirname, "../views", "verify-email.pug"),
       {
-        name: exitingUser.username,
+        name: existingUser.username,
         verifyUrl: `${process.env.URL_BE}/api/auth/verify-email?token=${verifyToken}`,
       }
     );
