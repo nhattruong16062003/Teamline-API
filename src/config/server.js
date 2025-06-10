@@ -5,6 +5,7 @@ const { Server } = require("socket.io");
 const app = express();
 const http = require("http");
 const server = http.createServer(app);
+const cookieParser = require("cookie-parser");
 const indexRoute = require("../routes/index.routes");
 const connectDB = require("../config/db");
 const chatSocket = require("../socket/chat.socket");
@@ -19,6 +20,9 @@ const io = new Server(server, {
 app.use(express.json());
 require("dotenv").config();
 app.use(morgan("dev"));
+
+//Cấu hình parser để đọc cookie do client gửi xuống (gửi refreshtoken)
+app.use(cookieParser());
 
 //Cấu hình cros để be có thể nhận request từ fe
 app.use(
