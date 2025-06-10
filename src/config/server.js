@@ -1,9 +1,20 @@
 const express = require("express");
 const morgan = require("morgan");
 const cors = require("cors");
+const { Server } = require("socket.io");
+const app = express();
+const http = require("http");
+const server = http.createServer(app);
 const indexRoute = require("../routes/index.routes");
 const connectDB = require("../config/db");
-const app = express();
+const chatSocket = require("../socket/chat.socket");
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:3000", // Cho phép FE từ cổng này
+    methods: ["GET", "POST"], // Phương thức HTTP được phép
+    credentials: true, // Cho phép gửi cookie nếu cần
+  },
+});
 
 app.use(express.json());
 require("dotenv").config();
@@ -25,5 +36,12 @@ app.set("views", "./views");
 
 connectDB();
 app.use("/api", indexRoute);
+
+chatSocket(io); // khởi động Socket.IO
+
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  console.log(`Server is running at http://localhost:${PORT}`);
+});
 
 module.exports = app;
