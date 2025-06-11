@@ -9,63 +9,55 @@ class ChatService {
         this.userToSocket = new Map(); // userId -> socketId
     }
 
-    async registerUser(socket, data) {
-        const { userId } = data; // lấy userId từ data
-        // if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
-        //     console.log(`Đăng ký thất bại: userId không hợp lệ cho socket ${socket.id}`);
-        //     socket.emit('error', { message: 'ID người dùng không hợp lệ' });
-        //     return false;
-        // }
+    async registerUser(socket, userId) {
+        if (!socket.userId || !mongoose.Types.ObjectId.isValid(socket.userId)) {
+            console.log(`Đăng ký thất bại: userId không hợp lệ cho socket ${socket.id}`);
+            socket.emit('error', { message: 'ID người dùng không hợp lệ' });
+            return false;
+        }
 
-        // if (!username || typeof username !== 'string' || username.trim() === '') {
-        //     console.log(`Đăng ký thất bại: username không hợp lệ cho socket ${socket.id}`);
-        //     socket.emit('error', { message: 'Tên người dùng không hợp lệ' });
-        //     return false;
-        // }
+        // Kiểm tra userId tồn tại trong database
+        const user = await User.findById(socket.userId);
+        if (!user) {
+            console.log(`Đăng ký thất bại: Không tìm thấy người dùng với userId ${socket.userId}`);
+            socket.emit('error', { message: 'Người dùng không tồn tại' });
+            return false;
+        }
 
-        // // Kiểm tra userId tồn tại trong database
-        // const user = await User.findById(userId);
-        // if (!user) {
-        //     console.log(`Đăng ký thất bại: Không tìm thấy người dùng với userId ${userId}`);
-        //     socket.emit('error', { message: 'Người dùng không tồn tại' });
-        //     return false;
-        // }
-
-        // console.log(`Đăng ký người dùng: userId=${userId}, username=${username}, socket=${socket.id}`);
-        this.users.set(socket.id, { userId });
-        this.userToSocket.set(userId.toString(), socket.id);
-        console.log(`Người dùng đã đăng ký: userId=${userId.toString()}, socketId=${socket.id}`);
-        socket.emit('registered', { userId: userId.toString() });
+        this.users.set(socket.id, { userId: socket.userId });
+        this.userToSocket.set(socket.userId, socket.id);
+        console.log(`Người dùng đã đăng ký: userId=${socket.userId}, socketId=${socket.id}`);
+        socket.emit('registered', { userId: socket.userId });
         return true;
 
     }
 
     async sendPrivateMessage(socket, io, { toUserId, message }) {
-        // if (!toUserId || !message || typeof message !== 'string' || message.trim() === '' || !mongoose.Types.ObjectId.isValid(toUserId)) {
-        //     console.log('Lỗi: Tin nhắn hoặc người nhận không hợp lệ', { toUserId, message });
-        //     socket.emit('error', { message: 'Tin nhắn hoặc ID người nhận không hợp lệ' });
-        //     return;
-        // }
+        if (!toUserId || !message || typeof message !== 'string' || message.trim() === '' || !mongoose.Types.ObjectId.isValid(toUserId)) {
+            console.log('Lỗi: Tin nhắn hoặc người nhận không hợp lệ', { toUserId, message });
+            socket.emit('error', { message: 'Tin nhắn hoặc ID người nhận không hợp lệ' });
+            return;
+        }
 
         const user = this.users.get(socket.id);
-        // if (!user) {
-        //     console.log(`Lỗi: Người dùng chưa đăng ký cho socket ${socket.id}`);
-        //     socket.emit('error', { message: 'Người dùng chưa đăng ký. Vui lòng đăng ký trước.' });
-        //     return;
-        // }
+        if (!user) {
+            console.log(`Lỗi: Người dùng chưa đăng ký cho socket ${socket.id}`);
+            socket.emit('error', { message: 'Người dùng chưa đăng ký. Vui lòng đăng ký trước.' });
+            return;
+        }
         const { userId: fromUserId } = user;
 
-        console.log('fromUserId:', fromUserId);
+        console.log('fromUserId:', socket.userId);
         console.log('toUserId:', toUserId);
 
         try {
             // Kiểm tra người nhận tồn tại
-            // const recipient = await User.findById(toUserId);
-            // if (!recipient) {
-            //     console.log(`Lỗi: Không tìm thấy người nhận với userId ${toUserId}`);
-            //     socket.emit('error', { message: 'Người nhận không tồn tại' });
-            //     return;
-            // }
+            const recipient = await User.findById(toUserId);
+            if (!recipient) {
+                console.log(`Lỗi: Không tìm thấy người nhận với userId ${toUserId}`);
+                socket.emit('error', { message: 'Người nhận không tồn tại' });
+                return;
+            }
 
             // const newMessage = new Message({
             //     sender: fromUserId, // ObjectId
@@ -144,7 +136,6 @@ class ChatService {
         // }
 
         // const { userId, username } = user;
-        // console.log(`Người dùng ${username} (userId: ${userId}) ngắt kết nối`);
         this.users.delete(socket.id);
         // this.userToSocket.delete(userId.toString());
 

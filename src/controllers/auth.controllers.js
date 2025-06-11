@@ -81,7 +81,7 @@ const login = async (req, res) => {
     const accessToken = jwt.sign(
       { id: existingUser._id },
       process.env.JWT_SECRET,
-      { expiresIn: "15m" }
+      { expiresIn: "1m" }
     );
 
     const refreshToken = jwt.sign(
@@ -202,21 +202,22 @@ const resendVerificationEmail = async (req, res) => {
 };
 
 const refreshToken = async (req, res) => {
+  console.log("call refreshToken");
   try {
     const refreshToken = req.cookies?.refreshToken;
     if (!refreshToken) {
       return res.status(401).json({ message: "Không có refresh token" });
     }
-    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    jwt.verify(refreshToken, process.env.JWT_SECRET, (err, decoded) => {
       if (err) {
         return res
-          .status(403)
+          .status(401)
           .json({ message: "Refresh token không hợp lệ hoặc đã hết hạn" });
       }
 
       // Tao accesstoken moi
       const accessToken = jwt.sign({ id: decoded.id }, process.env.JWT_SECRET, {
-        expiresIn: "15m",
+        expiresIn: "1m",
       });
 
       // Tao refresh token moi
@@ -225,6 +226,12 @@ const refreshToken = async (req, res) => {
         process.env.JWT_SECRET,
         { expiresIn: "7d" }
       );
+      res.cookie('accessToken', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Strict',
+        maxAge: 15 * 60 * 1000, // 15 phút
+      });
       res.cookie("refreshToken", newRefreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
