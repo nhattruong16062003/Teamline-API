@@ -96,7 +96,7 @@ class ChatService {
             const toSocketId = this.userToSocket.get(toUserId.toString());
             if (toSocketId && io.sockets.sockets.has(toSocketId)) {
                 io.to(toSocketId).emit('private-message', {
-                    from: socket.userId,
+                    fromUserId: socket.userId,
                     message,
                     sentAt: savedMessage.createdAt,
                 });
