@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Message = require('../models/Message');
-const User = require('../models/User'); // Mô hình User
+const Chat = require('../models/Chat');
+const User = require('../models/User');
 
 class ChatService {
     constructor() {
@@ -45,7 +46,6 @@ class ChatService {
             socket.emit('error', { message: 'Người dùng chưa đăng ký. Vui lòng đăng ký trước.' });
             return;
         }
-        const { userId: fromUserId } = user;
 
         console.log('fromUserId:', socket.userId);
         console.log('toUserId:', toUserId);
@@ -58,36 +58,57 @@ class ChatService {
                 socket.emit('error', { message: 'Người nhận không tồn tại' });
                 return;
             }
-
-            // const newMessage = new Message({
-            //     sender: fromUserId, // ObjectId
-            //     content: message,
-            //     type: 'text',
-            //     chat: toUserId, // ObjectId
-            // });
-
-            // const savedMessage = await newMessage.save();
-            // console.log(`Tin nhắn đã lưu: ${savedMessage._id}`);
+            if (socket.userId.toString() === toUserId.toString()) {
+                console.log(`Lỗi: Người gửi và người nhận không thể là cùng một người`);
+                socket.emit('error', { message: 'Người gửi và người nhận không thể là cùng một người' });
+                return;
+            }
+            // Kiểm tra người gửi có tồn tại
+            let chat = await Chat.findOne({
+                type: 'private',
+                members: { $all: [socket.userId, toUserId] }
+            });
+            if (!chat) {
+                // Tạo chat mới nếu chưa tồn tại
+                chat = new Chat({
+                    name: null,
+                    type: 'private',
+                    members: [socket.userId, toUserId],
+                    admins: null,
+                    owner: null,
+                    pinnedMessages: [],
+                    allowChat: true
+                });
+                await chat.save();
+                console.log(`Chat mới đã được tạo: ${chat._id}`);
+            }
+            const savedMessage = await Message.create({
+                sender: socket.userId,
+                content: message,
+                type: 'text',
+                fileUrl: null,
+                replyTo: null,
+                reactions: [],
+                seenBy: [],
+                chat: chat._id,
+            });
 
             const toSocketId = this.userToSocket.get(toUserId.toString());
             if (toSocketId && io.sockets.sockets.has(toSocketId)) {
                 io.to(toSocketId).emit('private-message', {
-                    fromUserId,
-                    // fromUsername, // Gửi username để hiển thị
+                    fromUserId: socket.userId,
                     message,
-                    // messageId: savedMessage._id,
-                    // sentAt: savedMessage.createdAt,
+                    sentAt: savedMessage.createdAt,
                 });
             } else {
                 console.log(`Người nhận ${toUserId} không online`);
             }
 
             socket.emit('message-sent', {
-                toUserId,
-                // messageId: savedMessage._id,
                 status: 'saved',
-                // sentAt: savedMessage.createdAt,
+                sentAt: savedMessage.createdAt,
             });
+
         } catch (error) {
             console.error('Lỗi khi lưu tin nhắn:', error);
             socket.emit('error', { message: 'Không thể gửi tin nhắn' });
