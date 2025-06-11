@@ -9,7 +9,7 @@ const Message = require("../models/Message");
 const Poll = require("../models/Poll");
 const { emailValidator, passwordValidator } = require("../helpers/validation");
 const sendEmail = require("../services/emailSender");
-const generateValidPassword = require("../helpers/passwordGenerator");
+const { generateValidPassword } = require("../helpers/passwordGenerator");
 const {
   prepareSendVerificationEmail,
 } = require("../helpers/verificationEmail");
@@ -29,10 +29,20 @@ const register = async (req, res) => {
     }
     //Check xem user đã tồn tại chưa?
     const existingUser = await User.findOne({ email });
-    if (existingUser)
-      return res.status(409).json({ message: "email đã được sử dụng" });
-
-    //check them tai khoan duoc tao nhưng chưa được kích hoạt
+    if (existingUser) {
+      if (!existingUser.isVerify) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(403).json({
+          message: "Tài khoản của bạn chưa được kích hoạt",
+          err_code: "ACCOUNT_NOT_ACTIVATED",
+        });
+      }
+      // Nếu đã được kích hoạt rồi
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(409).json({ message: "Email đã được sử dụng" });
+    }
 
     //Tạo mới user với dữ liệu đầu vào
     const newUser = new User({
@@ -70,9 +80,10 @@ const login = async (req, res) => {
     if (!existingUser)
       return res.status(409).json({ message: "Tài khoản không tồn tại" });
     if (!existingUser.isVerify)
-      return res
-        .status(403)
-        .json({ message: "Tài khoản của bạn chưa được kích hoạt" });
+      return res.status(403).json({
+        message: "Tài khoản của bạn chưa được kích hoạt",
+        err_code: "ACCOUNT_NOT_ACTIVATED",
+      });
     const isMatch = await bcrypt.compare(password, existingUser.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Sai mật khẩu" });
@@ -158,6 +169,7 @@ const verifyEmail = async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
     const user = await User.findById(userId);
+    console.log("user la", user._id);
     if (!user) {
       return res.status(404).json({ message: "Tài khoản không tồn tại" });
     }
@@ -197,7 +209,10 @@ const resendVerificationEmail = async (req, res) => {
   } catch (error) {
     return res
       .status(500)
-      .json({ message: "Đã có lỗi xảy ra", error: error.message });
+      .json({
+        message: "Đã có lỗi xảy ra, vui lòng thử lại sau",
+        error: error.message,
+      });
   }
 };
 
