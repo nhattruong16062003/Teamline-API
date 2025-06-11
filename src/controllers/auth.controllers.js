@@ -92,7 +92,7 @@ const login = async (req, res) => {
     const accessToken = jwt.sign(
       { id: existingUser._id },
       process.env.JWT_SECRET,
-      { expiresIn: "1m" }
+      { expiresIn: "15m" }
     );
 
     const refreshToken = jwt.sign(
@@ -207,12 +207,10 @@ const resendVerificationEmail = async (req, res) => {
     await prepareSendVerificationEmail(req, res, existingUser);
     return res.status(200).json({ message: "Email xác minh đã được gửi lại." });
   } catch (error) {
-    return res
-      .status(500)
-      .json({
-        message: "Đã có lỗi xảy ra, vui lòng thử lại sau",
-        error: error.message,
-      });
+    return res.status(500).json({
+      message: "Đã có lỗi xảy ra, vui lòng thử lại sau",
+      error: error.message,
+    });
   }
 };
 
@@ -232,7 +230,7 @@ const refreshToken = async (req, res) => {
 
       // Tao accesstoken moi
       const accessToken = jwt.sign({ id: decoded.id }, process.env.JWT_SECRET, {
-        expiresIn: "1m",
+        expiresIn: "15m",
       });
 
       // Tao refresh token moi
@@ -241,10 +239,10 @@ const refreshToken = async (req, res) => {
         process.env.JWT_SECRET,
         { expiresIn: "7d" }
       );
-      res.cookie('accessToken', accessToken, {
+      res.cookie("accessToken", accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Strict',
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "Strict",
         maxAge: 15 * 60 * 1000, // 15 phút
       });
       res.cookie("refreshToken", newRefreshToken, {
