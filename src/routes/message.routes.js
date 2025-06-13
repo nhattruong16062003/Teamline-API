@@ -2,6 +2,6 @@ const express = require("express");
 const router = express.Router();
 const { getMessages } = require("../controllers/message.controllers");
 
-router.get('/:activeChatUserId/:page', getMessages);
+router.get('/:chatId/:page', getMessages);
 
 module.exports = router;
