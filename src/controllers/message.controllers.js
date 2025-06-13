@@ -4,46 +4,31 @@ const Chat = require('../models/Chat'); // Đường dẫn đến Chat model
 
 const getMessages = async (req, res) => {
     try {
-        const userId = req.userId; // Lấy userId từ token (giả định middleware đã thêm vào req.user)
-        const { activeChatUserId, page } = req.params; // Lấy activeChatUserId từ tham số URL
-        const limit = 20; // Số tin nhắn mỗi trang
-        const skip = (page - 1) * limit; // Tính số tin nhắn cần bỏ qua
+        const userId = req.userId; // Lấy userId từ token
+        const { chatId, page } = req.params; // Lấy chatId và page từ query string, mặc định page = 1
+        const limit = 20;
+        const skip = (page - 1) * limit;
 
-        console.log("Lấy tin nhắn cho userId:", userId, "với activeChatUserId:", activeChatUserId, "trang:", page);
+        console.log("Lấy tin nhắn cho userId:", userId, "với chatId:", chatId, "trang:", page);
 
-        // Kiểm tra userId và activeChatUserId
-        if (!userId || !activeChatUserId) {
-            return res.status(400).json({ message: "User ID và Active Chat User ID là bắt buộc" });
+        if (!userId || !chatId) {
+            return res.status(400).json({ message: "User ID và Chat ID là bắt buộc" });
         }
 
-        // Đảm bảo userId và activeChatUserId là ObjectId hợp lệ
-        if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(activeChatUserId)) {
-            return res.status(400).json({ message: "ID người dùng không hợp lệ" });
+        if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(chatId)) {
+            return res.status(400).json({ message: "ID không hợp lệ" });
         }
 
-        // Tìm cuộc trò chuyện mà cả userId và activeChatUserId đều là thành viên
-        const chat = await Chat.findOne({
-            members: { $all: [userId, activeChatUserId] },
-            type: 'private', // Chỉ lấy cuộc trò chuyện cá nhân
-        });
+        const totalMessages = await Message.countDocuments({ chat: chatId });
 
-        if (!chat) {
-            return res.status(404).json({ message: "Không tìm thấy cuộc trò chuyện" });
-        }
+        const messages = await Message.find({ chat: chatId })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate('sender', 'name')
+            .populate('replyTo', 'content')
+            .lean();
 
-        // Lấy tổng số tin nhắn để tính phân trang
-        const totalMessages = await Message.countDocuments({ chat: chat._id });
-
-        // Lấy 20 tin nhắn cuối cùng từ cuộc trò chuyện
-        const messages = await Message.find({ chat: chat._id })
-            .sort({ createdAt: -1 }) // Sắp xếp theo thời gian giảm dần
-            .skip(skip) // Bỏ qua các tin nhắn của trang trước
-            .limit(limit) // Giới hạn 20 tin nhắn
-            .populate('sender', 'name') // Populate tên người gửi (tùy chỉnh theo schema User)
-            .populate('replyTo', 'content') // Populate nội dung tin nhắn được trả lời (nếu có)
-            .lean(); // Chuyển đổi sang plain JavaScript object để tối ưu
-
-        // Nếu không có tin nhắn
         if (!messages || messages.length === 0) {
             return res.status(200).json({
                 messages: [],
@@ -53,12 +38,10 @@ const getMessages = async (req, res) => {
             });
         }
 
-        // Tính tổng số trang
         const totalPages = Math.ceil(totalMessages / limit);
 
-        // Trả về kết quả
         return res.status(200).json({
-            messages: messages.reverse(), // Đảo ngược để hiển thị tin nhắn theo thứ tự thời gian tăng dần
+            messages: messages.reverse(),
             currentPage: page,
             totalPages,
             totalMessages,
