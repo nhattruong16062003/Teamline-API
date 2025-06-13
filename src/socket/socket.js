@@ -34,16 +34,28 @@ module.exports = (io) => {
       return;
     }
 
-    // Lắng nghe các sự kiện với kiểm tra token
-    socket.on('register', (data) => {
+    //join room theo userId và đăng ký người dùng
+    socket.on('join-user', (data) => {
       verifySocketToken(socket, () => {
-        chatService.registerUser(socket);
+        chatService.joinUser(socket, io, { data });
       });
     });
 
-    socket.on('private-message', (data) => {
+    socket.on('join-room', (data) => {
       verifySocketToken(socket, () => {
-        chatService.sendPrivateMessage(socket, io, data);
+        chatService.joinRoom(socket, io, { data });
+      });
+    });
+
+    socket.on('leave-room', (data) => {
+      verifySocketToken(socket, () => {
+        chatService.leaveRoom(socket, io, { data });
+      });
+    });
+
+    socket.on('send-message', (data) => {
+      verifySocketToken(socket, () => {
+        chatService.sendMessage(socket, io, { data });
       });
     });
 
@@ -58,18 +70,6 @@ module.exports = (io) => {
     socket.on('remove-reaction', (messageId) => {
       verifySocketToken(socket, () => {
         chatService.removeReaction(socket, io, messageId);
-      });
-    });
-
-    socket.on('join-room', (room) => {
-      verifySocketToken(socket, () => {
-        chatService.joinRoom(socket, io, room);
-      });
-    });
-
-    socket.on('group-message', (data) => {
-      verifySocketToken(socket, () => {
-        chatService.sendGroupMessage(socket, io, data);
       });
     });
 

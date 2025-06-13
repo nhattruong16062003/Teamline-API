@@ -6,104 +6,121 @@ const User = require("../models/User");
 class SocketService {
   constructor() {
     this.users = new Map(); // socketId -> userId
-    // this.rooms = new Map(); // roomID -> Set(socketId)
     this.userToSocket = new Map(); // userId -> socketId
   }
 
-  async registerUser(socket) {
-    if (!socket.userId || !mongoose.Types.ObjectId.isValid(socket.userId)) {
-      console.log(
-        `Đăng ký thất bại: userId không hợp lệ cho socket ${socket.id}`
-      );
-      socket.emit("error", { message: "ID người dùng không hợp lệ" });
-      return false;
-    }
+  async joinUser(socket, io, { data }) {
+    const userId = socket.userId || null; // Lấy userId từ data
+    try {
+      if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        socket.emit("error", { message: "ID người dùng không hợp lệ" });
+        return;
+      }
 
-    // Kiểm tra userId tồn tại trong database
-    const user = await User.findById(socket.userId);
-    if (!user) {
-      console.log(
-        `Đăng ký thất bại: Không tìm thấy người dùng với userId ${socket.userId}`
-      );
-      socket.emit("error", { message: "Người dùng không tồn tại" });
-      return false;
-    }
+      // Kiểm tra user có tồn tại không
+      const user = await User.findById(userId);
+      if (!user) {
+        socket.emit("error", { message: "Người dùng không tồn tại" });
+        return;
+      }
 
-    this.users.set(socket.id, { userId: socket.userId });
-    this.userToSocket.set(socket.userId, socket.id);
-    console.log(
-      `Người dùng đã đăng ký: userId=${socket.userId}, socketId=${socket.id}`
-    );
-    socket.emit("registered", { userId: socket.userId });
-    return true;
+      // Đăng ký user
+      this.users.set(socket.id, { userId: userId });
+      this.userToSocket.set(userId, socket.id);
+
+      // Join room cá nhân
+      const roomName = `${userId}`;
+      socket.join(roomName);
+
+      console.log(`${socket.id} đã đăng ký và tham gia phòng ${roomName}`);
+
+      socket.emit("user-joined"); // Nếu bạn muốn gửi confirm lại cho FE
+    } catch (error) {
+      console.error("Lỗi join user:", error);
+      socket.emit("error", { message: "Không thể tham gia phòng" });
+    }
   }
 
-  async sendPrivateMessage(socket, io, { toUserId, message }) {
-    if (
-      !toUserId ||
-      !message ||
-      typeof message !== "string" ||
-      message.trim() === "" ||
-      !mongoose.Types.ObjectId.isValid(toUserId)
-    ) {
-      console.log("Lỗi: Tin nhắn hoặc người nhận không hợp lệ", {
-        toUserId,
-        message,
-      });
-      socket.emit("error", {
-        message: "Tin nhắn hoặc ID người nhận không hợp lệ",
-      });
+  async joinRoom(socket, io, { data }) {
+    const roomId = data.roomId || null; // Lấy roomId từ data
+    try {
+      if (!roomId || !mongoose.Types.ObjectId.isValid(roomId)) {
+        socket.emit("error", { message: "ID phòng không hợp lệ" });
+        return;
+      }
+
+      // Kiểm tra room có tồn tại không
+      const chatRoom = await Chat.findById(roomId);
+      if (!chatRoom) {
+        socket.emit("error", { message: "Phòng không tồn tại" });
+        return;
+      }
+
+      // Tham gia phòng
+      socket.join(roomId);
+      console.log(`${socket.id} đã tham gia phòng ${roomId}`);
+
+    } catch (error) {
+      console.error('Lỗi join room:', error);
+    }
+  };
+
+  async sendMessage(socket, io, { data }) {
+    const chatId = data.roomId || null;
+    const message = data.message || null;
+    const toUserId = data.toUserId || null;
+
+    if (!message || typeof message !== "string" || message.trim() === "") {
+      console.log("Lỗi: Tin nhắn không hợp lệ", { chatId, message });
+      socket.emit("error", { message: "Tin nhắn không hợp lệ" });
       return;
     }
 
-    const user = this.users.get(socket.id);
-    if (!user) {
+    const userId = this.users.get(socket.id)?.userId;
+    if (!userId) {
       console.log(`Lỗi: Người dùng chưa đăng ký cho socket ${socket.id}`);
-      socket.emit("error", {
-        message: "Người dùng chưa đăng ký. Vui lòng đăng ký trước.",
-      });
+      socket.emit("error", { message: "Người dùng chưa đăng ký. Vui lòng đăng ký trước." });
       return;
     }
-
-    console.log("fromUserId:", socket.userId);
-    console.log("toUserId:", toUserId);
 
     try {
-      // Kiểm tra người nhận tồn tại
-      const recipient = await User.findById(toUserId);
-      if (!recipient) {
-        console.log(`Lỗi: Không tìm thấy người nhận với userId ${toUserId}`);
-        socket.emit("error", { message: "Người nhận không tồn tại" });
-        return;
+      let chat;
+
+      // Nếu truyền chatId → kiểm tra chat có tồn tại
+      if (chatId && mongoose.Types.ObjectId.isValid(chatId)) {
+        chat = await Chat.findById(chatId);
+        if (!chat) {
+          console.log("Lỗi: Phòng chat không tồn tại");
+          socket.emit("error", { message: "Phòng chat không tồn tại" });
+          return;
+        }
       }
-      if (socket.userId.toString() === toUserId.toString()) {
-        console.log(`Lỗi: Người gửi và người nhận không thể là cùng một người`);
-        socket.emit("error", {
-          message: "Người gửi và người nhận không thể là cùng một người",
-        });
-        return;
-      }
-      // Kiểm tra người gửi có tồn tại
-      let chat = await Chat.findOne({
-        type: "private",
-        members: { $all: [socket.userId, toUserId] },
-      });
+
+      // Nếu không truyền chatId → tạo mới
       if (!chat) {
-        // Tạo chat mới nếu chưa tồn tại
+        if (!toUserId || !mongoose.Types.ObjectId.isValid(toUserId)) {
+          console.log("Lỗi: toUserId không hợp lệ");
+          socket.emit("error", { message: "ID người nhận không hợp lệ" });
+          return;
+        }
+
         chat = new Chat({
           name: null,
           type: "private",
-          members: [socket.userId, toUserId],
+          members: [userId, toUserId],
           admins: null,
           owner: null,
           pinnedMessages: [],
           allowChat: true,
         });
+
         await chat.save();
         console.log(`Chat mới đã được tạo: ${chat._id}`);
       }
+
+      // Lưu tin nhắn
       const savedMessage = await Message.create({
-        sender: socket.userId,
+        sender: userId,
         content: message,
         type: "text",
         fileUrl: null,
@@ -113,23 +130,35 @@ class SocketService {
         chat: chat._id,
       });
 
-      //phải gửi đủ thông tin để hiển thị tin nhắn
-      const toSocketId = this.userToSocket.get(toUserId.toString());
-      if (toSocketId && io.sockets.sockets.has(toSocketId)) {
-        io.to(toSocketId).emit("private-message", savedMessage);
-      } else {
-        console.log(`Người nhận ${toUserId} không online`);
+      // Gửi cho tất cả socket đang ở trong room
+      io.to(chat._id.toString()).emit("private-message", savedMessage);
+
+      // Gửi trực tiếp cho các user chưa vào room (nhưng đang online)
+      for (const memberId of chat.members) {
+        // Bỏ qua người gửi
+        if (memberId.toString() === userId.toString()) continue;
+
+        const toSocketId = this.userToSocket.get(memberId.toString());
+        if (toSocketId && io.sockets.sockets.has(toSocketId)) {
+          console.log("sent", toSocketId);
+          // Gửi trực tiếp nếu socket đang online nhưng chưa join room
+          io.to(toSocketId).emit("received-message", savedMessage);
+        }
       }
 
+      // Trả về cho người gửi xác nhận đã gửi
       socket.emit("message-sent", {
         status: "saved",
         sentAt: savedMessage.createdAt,
+        chatId: chat._id,
       });
+
     } catch (error) {
-      console.error("Lỗi khi lưu tin nhắn:", error);
+      console.error("Lỗi khi gửi tin nhắn:", error);
       socket.emit("error", { message: "Không thể gửi tin nhắn" });
     }
   }
+
 
   async addReaction(socket, io, { messageId }) {
     if (!messageId) {
@@ -223,36 +252,11 @@ class SocketService {
     }
   }
 
-  async joinRoom(socket, io) {
-    socket.on("join-room", async ({ roomId }) => {
-      try {
-        if (!roomId || !mongoose.Types.ObjectId.isValid(roomId)) {
-          socket.emit("error", { message: "ID phòng không hợp lệ" });
-          return;
-        }
-
-        // Optional: kiểm tra room có tồn tại không
-        const chatRoom = await Chat.findById(roomId);
-        if (!chatRoom) {
-          socket.emit("error", { message: "Phòng không tồn tại" });
-          return;
-        }
-
-        // Tham gia phòng
-        socket.join(roomId);
-        console.log(`${socket.id} đã tham gia phòng ${roomId}`);
-
-      } catch (error) {
-        console.error('Lỗi join room:', error);
-        socket.emit("error", { message: "Lỗi khi tham gia phòng." });
-      }
-    });
-  };
-
-  async leaveRoom(socket, io) {
-    socket.on("leave-room", ({ roomId }) => {
-      if (!roomId) {
-        socket.emit("error", { message: "Room ID không hợp lệ" });
+  async leaveRoom(socket, io, { data }) {
+    const roomId = data.roomId || null; // Lấy roomId từ data
+    try {
+      if (!roomId || !mongoose.Types.ObjectId.isValid(roomId)) {
+        socket.emit("error", { message: "ID phòng không hợp lệ" });
         return;
       }
 
@@ -260,8 +264,10 @@ class SocketService {
       socket.leave(roomId);
       console.log(`${socket.id} đã rời phòng ${roomId}`);
 
-    });
-  };
+    } catch (error) {
+      console.error('Lỗi leave room:', error);
+    }
+  }
 
   sendGroupMessage(socket, io, { roomName, message }) {
     if (
@@ -310,7 +316,6 @@ class SocketService {
 
     console.log(`${socket.id} đã ngắt kết nối và rời tất cả phòng`);
   }
-
 }
 
 module.exports = SocketService;
