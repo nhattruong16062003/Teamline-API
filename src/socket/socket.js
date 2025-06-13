@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const cookie = require('cookie');
-const ChatService = require('../services/chat.service');
+const ChatService = require('../services/socket.service');
 const verifySocketToken = require('../middleware/socketAuth.middleware');
 
 module.exports = (io) => {
@@ -45,6 +45,20 @@ module.exports = (io) => {
         socket.on('private-message', (data) => {
             verifySocketToken(socket, () => {
                 chatService.sendPrivateMessage(socket, io, data);
+            });
+        });
+
+        //Sự kiện reaction tin nhắn
+        socket.on('add-reaction', messageId => {
+            verifySocketToken(socket, () => {
+                chatService.addReaction(socket, io, messageId);
+            });
+        });
+
+        //Sự kiện xóa reaction tin nhắn
+        socket.on('remove-reaction', (messageId) => {
+            verifySocketToken(socket, () => {
+                chatService.removeReaction(socket, io, messageId);
             });
         });
 

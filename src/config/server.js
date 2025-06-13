@@ -8,7 +8,7 @@ const server = http.createServer(app);
 const cookieParser = require("cookie-parser");
 const indexRoute = require("../routes/index.routes");
 const connectDB = require("../config/db");
-const chatSocket = require("../socket/chat.socket");
+const chatSocket = require("../socket/socket");
 const io = new Server(server, {
   cors: {
     origin: "http://localhost:3000", // Cho phép FE từ cổng này
