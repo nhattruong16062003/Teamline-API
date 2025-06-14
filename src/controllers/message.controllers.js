@@ -6,10 +6,8 @@ const getMessages = async (req, res) => {
     try {
         const userId = req.userId; // Lấy userId từ token
         const { chatId, page } = req.params; // Lấy chatId và page từ query string, mặc định page = 1
-        const limit = 20;
+        const limit = 15;
         const skip = (page - 1) * limit;
-
-        console.log("Lấy tin nhắn cho userId:", userId, "với chatId:", chatId, "trang:", page);
 
         if (!userId || !chatId) {
             return res.status(400).json({ message: "User ID và Chat ID là bắt buộc" });
@@ -46,6 +44,14 @@ const getMessages = async (req, res) => {
             totalPages,
             totalMessages,
         });
+        // setTimeout(() => {
+        //     return res.status(200).json({
+        //         messages: messages.reverse(),
+        //         currentPage: page,
+        //         totalPages,
+        //         totalMessages,
+        //     });
+        // }, 5000); // Delay
     } catch (error) {
         console.error("Lỗi khi lấy tin nhắn:", error);
         return res.status(500).json({
