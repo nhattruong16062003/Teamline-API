@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
 const User = require("../models/User");
+const Chat = require("../models/Chat");
+
 const {
   uploadImageBuffer,
   deleteImageFromDrive,
@@ -76,12 +78,31 @@ const changePassword = async (req, res) => {};
 const getUserByEmail = async (req, res) => {
   try {
     const { email } = req.params;
+    const userId = new mongoose.Types.ObjectId(req.userId);
     const user = await User.findOne({ email });
+    let chat = null;
     if (!user) {
       return res.status(404).json({ message: "Tài khoản không tồn tại" });
     }
-    return res.status(200).json({ message: "Thông tin user", user });
+
+    // Kiểm tra xem có chat nào giữa người tìm kiếm và user._id hay không
+    if (userId.toString() != user._id.toString()) {
+      chat = await Chat.findOne({
+        type: "private",
+        members: { $all: [userId, user._id], $size: 2 },
+      });
+    }
+    return res.status(200).json({
+      message: "Thông tin user",
+      user: {
+        _id: user._id,
+        username: user.username,
+        avatar: user.avatar,
+      },
+      chatId: chat ? chat._id : null,
+    });
   } catch (error) {
+    console.log(error.message);
     return res
       .status(500)
       .json({ message: "Đã có lỗi xảy ra", error: error.message });

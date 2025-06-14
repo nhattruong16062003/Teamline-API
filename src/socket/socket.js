@@ -1,12 +1,13 @@
-const jwt = require('jsonwebtoken');
-const cookie = require('cookie');
-const ChatService = require('../services/socket.service');
-const verifySocketToken = require('../middleware/socketAuth.middleware');
+const jwt = require("jsonwebtoken");
+const cookie = require("cookie");
+const ChatService = require("../services/socket.service");
+const verifySocketToken = require("../middleware/socketAuth.middleware");
 
 module.exports = (io) => {
   const chatService = new ChatService();
 
   io.on("connection", (socket) => {
+    console.log("da chay vao connect");
     //kiểm tra token t=khi kết nối lần đầu
     // Lấy token từ cookie
     const cookies = cookie.parse(socket.handshake.headers.cookie || "");
@@ -35,45 +36,45 @@ module.exports = (io) => {
     }
 
     //join room theo userId và đăng ký người dùng
-    socket.on('join-user', (data) => {
+    socket.on("join-user", (data) => {
       verifySocketToken(socket, () => {
         chatService.joinUser(socket, io, { data });
       });
     });
 
-    socket.on('join-room', (data) => {
+    socket.on("join-room", (data) => {
       verifySocketToken(socket, () => {
         chatService.joinRoom(socket, io, { data });
       });
     });
 
-    socket.on('leave-room', (data) => {
+    socket.on("leave-room", (data) => {
       verifySocketToken(socket, () => {
         chatService.leaveRoom(socket, io, { data });
       });
     });
 
-    socket.on('send-message', (data) => {
+    socket.on("send-message", (data) => {
       verifySocketToken(socket, () => {
         chatService.sendMessage(socket, io, { data });
       });
     });
 
     //Sự kiện reaction tin nhắn
-    socket.on('add-reaction', messageId => {
+    socket.on("add-reaction", (messageId) => {
       verifySocketToken(socket, () => {
         chatService.addReaction(socket, io, messageId);
       });
     });
 
     //Sự kiện xóa reaction tin nhắn
-    socket.on('remove-reaction', (messageId) => {
+    socket.on("remove-reaction", (messageId) => {
       verifySocketToken(socket, () => {
         chatService.removeReaction(socket, io, messageId);
       });
     });
 
-    socket.on('disconnect', () => {
+    socket.on("disconnect", () => {
       chatService.disconnect(socket, io);
     });
   });
