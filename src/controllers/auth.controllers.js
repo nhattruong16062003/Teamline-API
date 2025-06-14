@@ -117,7 +117,12 @@ const login = async (req, res) => {
 
     return res.status(200).json({
       message: "Login thành công",
-      existingUser,
+      existingUser: {
+        _id: existingUser._id,
+        username: existingUser.username,
+        email: existingUser.email,
+        avatar: existingUser.avatar,
+      },
     });
   } catch (error) {
     return res.status(500).json({
@@ -169,7 +174,6 @@ const verifyEmail = async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
     const user = await User.findById(userId);
-    console.log("user la", user._id);
     if (!user) {
       return res.status(404).json({ message: "Tài khoản không tồn tại" });
     }
@@ -178,12 +182,11 @@ const verifyEmail = async (req, res) => {
     }
     user.isVerify = true;
     await user.save();
-    console.log("Xác minh email thành công");
+
     return res
       .status(200)
       .json({ message: "Xác minh email thành công! Bạn có thể đăng nhập." });
   } catch (error) {
-    console.log("Liên kết xác minh không hợp lệ hoặc đã hết hạn.");
     return res.status(400).json({
       message: "Liên kết xác minh không hợp lệ hoặc đã hết hạn.",
       error: error.message,
@@ -215,7 +218,6 @@ const resendVerificationEmail = async (req, res) => {
 };
 
 const refreshToken = async (req, res) => {
-  console.log("call refreshToken");
   try {
     const refreshToken = req.cookies?.refreshToken;
     if (!refreshToken) {
@@ -267,7 +269,14 @@ const getCurrentUser = async (req, res) => {
     if (!user)
       return res.status(404).json({ message: "Không tìm thấy người dùng" });
 
-    return res.status(200).json({ user });
+    return res.status(200).json({
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar,
+      },
+    });
   } catch (error) {
     return res
       .status(500)
@@ -277,7 +286,6 @@ const getCurrentUser = async (req, res) => {
 
 const logout = async (req, res) => {
   try {
-    console.log("da vao day");
     // Xóa cookies
     res.clearCookie("accessToken", {
       httpOnly: true,

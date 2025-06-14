@@ -1,6 +1,7 @@
 const express = require("express");
 const morgan = require("morgan");
 const cors = require("cors");
+const multer = require("multer");
 const { Server } = require("socket.io");
 const app = express();
 const http = require("http");
@@ -24,6 +25,10 @@ app.use(morgan("dev"));
 //Cấu hình parser để đọc cookie do client gửi xuống (gửi refreshtoken)
 app.use(cookieParser());
 
+//Cấu hình để be có thể nhận dữ liệu formdata (cấu hình nơi lưu file và tên file)
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
 //Cấu hình cros để be có thể nhận request từ fe
 app.use(
   cors({
@@ -39,7 +44,7 @@ app.set("view engine", "pug");
 app.set("views", "./views");
 
 connectDB();
-app.use("/api", indexRoute);
+app.use("/api", upload.any(), indexRoute);
 
 chatSocket(io); // khởi động Socket.IO
 
