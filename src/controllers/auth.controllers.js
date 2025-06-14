@@ -117,7 +117,12 @@ const login = async (req, res) => {
 
     return res.status(200).json({
       message: "Login thành công",
-      existingUser,
+      existingUser: {
+        _id: existingUser._id,
+        username: existingUser.username,
+        email: existingUser.email,
+        avatar: existingUser.avatar,
+      },
     });
   } catch (error) {
     return res.status(500).json({
@@ -263,11 +268,19 @@ const refreshToken = async (req, res) => {
 
 const getCurrentUser = async (req, res) => {
   try {
+    console.log("da chay vao ham lay thong tin user");
     const user = await User.findById(req.userId).select("-password");
     if (!user)
       return res.status(404).json({ message: "Không tìm thấy người dùng" });
 
-    return res.status(200).json({ user });
+    return res.status(200).json({
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar,
+      },
+    });
   } catch (error) {
     return res
       .status(500)
