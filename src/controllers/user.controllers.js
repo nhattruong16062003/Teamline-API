@@ -77,7 +77,9 @@ const changePassword = async (req, res) => {};
 
 const getUserByEmail = async (req, res) => {
   try {
+    console.log("helo");
     const { email } = req.params;
+    console.log(email);
     const userId = new mongoose.Types.ObjectId(req.userId);
     const user = await User.findOne({ email });
     let chat = null;
