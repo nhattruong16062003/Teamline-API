@@ -132,8 +132,12 @@ class SocketService {
         chat: chat._id,
       });
 
-      // Gửi cho tất cả socket đang ở trong room
-      io.to(chat._id.toString()).emit("private-message", savedMessage);
+      // Lấy tất cả socketId trong room hiện tại
+      const socketIdsInRoom =
+        io.sockets.adapter.rooms.get(chat._id.toString()) || new Set();
+
+      // Gửi cho tất cả socket trong room
+      io.to(chat._id.toString()).emit("received-message", savedMessage);
 
       // Gửi trực tiếp cho các user chưa vào room (nhưng đang online)
       for (const memberId of chat.members) {
@@ -142,9 +146,10 @@ class SocketService {
 
         const toSocketId = this.userToSocket.get(memberId.toString());
         if (toSocketId && io.sockets.sockets.has(toSocketId)) {
-          console.log("sent", toSocketId);
-          // Gửi trực tiếp nếu socket đang online nhưng chưa join room
-          io.to(toSocketId).emit("received-message", savedMessage);
+          // Nếu socket đã tham gia room thì không gửi lại nữa
+          if (!socketIdsInRoom.has(toSocketId)) {
+            io.to(toSocketId).emit("received-message", savedMessage);
+          }
         }
       }
 
@@ -153,9 +158,10 @@ class SocketService {
         status: "saved",
         sentAt: savedMessage.createdAt,
         chatId: chat._id,
-        localId: localId,
         messageContent: savedMessage.content || savedMessage.fileUrl || null,
         messageSender: savedMessage.sender,
+        localId: data.localId,
+        messageId: savedMessage._id,
       });
     } catch (error) {
       console.error("Lỗi khi gửi tin nhắn:", error);
