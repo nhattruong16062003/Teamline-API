@@ -59,16 +59,16 @@ class SocketService {
       // Tham gia phòng
       socket.join(roomId);
       console.log(`${socket.id} đã tham gia phòng ${roomId}`);
-
     } catch (error) {
-      console.error('Lỗi join room:', error);
+      console.error("Lỗi join room:", error);
     }
-  };
+  }
 
   async sendMessage(socket, io, { data }) {
     const chatId = data.roomId || null;
     const message = data.message || null;
     const toUserId = data.toUserId || null;
+    const localId = data.localId || null;
 
     if (!message || typeof message !== "string" || message.trim() === "") {
       console.log("Lỗi: Tin nhắn không hợp lệ", { chatId, message });
@@ -79,7 +79,9 @@ class SocketService {
     const userId = this.users.get(socket.id)?.userId;
     if (!userId) {
       console.log(`Lỗi: Người dùng chưa đăng ký cho socket ${socket.id}`);
-      socket.emit("error", { message: "Người dùng chưa đăng ký. Vui lòng đăng ký trước." });
+      socket.emit("error", {
+        message: "Người dùng chưa đăng ký. Vui lòng đăng ký trước.",
+      });
       return;
     }
 
@@ -151,14 +153,15 @@ class SocketService {
         status: "saved",
         sentAt: savedMessage.createdAt,
         chatId: chat._id,
+        localId: localId,
+        messageContent: savedMessage.content || savedMessage.fileUrl || null,
+        messageSender: savedMessage.sender,
       });
-
     } catch (error) {
       console.error("Lỗi khi gửi tin nhắn:", error);
       socket.emit("error", { message: "Không thể gửi tin nhắn" });
     }
   }
-
 
   async addReaction(socket, io, { messageId }) {
     if (!messageId) {
@@ -170,7 +173,9 @@ class SocketService {
     const user = this.users.get(socket.id);
     if (!user) {
       console.log(`Lỗi: Người dùng chưa đăng ký cho socket ${socket.id}`);
-      socket.emit("error", { message: "Người dùng chưa đăng ký. Vui lòng đăng ký trước." });
+      socket.emit("error", {
+        message: "Người dùng chưa đăng ký. Vui lòng đăng ký trước.",
+      });
       return;
     }
 
@@ -198,7 +203,10 @@ class SocketService {
       await message.save();
 
       // Gửi lại cho các client
-      io.to(message.chat.toString()).emit("reaction-added", { messageId, userId: user.userId });
+      io.to(message.chat.toString()).emit("reaction-added", {
+        messageId,
+        userId: user.userId,
+      });
     } catch (error) {
       console.error("Lỗi khi thêm reaction:", error);
       socket.emit("error", { message: "Không thể thêm reaction" });
@@ -215,7 +223,9 @@ class SocketService {
     const user = this.users.get(socket.id);
     if (!user) {
       console.log(`Lỗi: Người dùng chưa đăng ký cho socket ${socket.id}`);
-      socket.emit("error", { message: "Người dùng chưa đăng ký. Vui lòng đăng ký trước." });
+      socket.emit("error", {
+        message: "Người dùng chưa đăng ký. Vui lòng đăng ký trước.",
+      });
       return;
     }
 
@@ -245,7 +255,10 @@ class SocketService {
       await message.save();
 
       // Gửi lại cho các client
-      io.to(message.chat.toString()).emit("reaction-removed", { messageId, userId: user.userId });
+      io.to(message.chat.toString()).emit("reaction-removed", {
+        messageId,
+        userId: user.userId,
+      });
     } catch (error) {
       console.error("Lỗi khi xóa reaction:", error);
       socket.emit("error", { message: "Không thể xóa reaction" });
@@ -263,9 +276,8 @@ class SocketService {
       // Thoát khỏi phòng
       socket.leave(roomId);
       console.log(`${socket.id} đã rời phòng ${roomId}`);
-
     } catch (error) {
-      console.error('Lỗi leave room:', error);
+      console.error("Lỗi leave room:", error);
     }
   }
 
