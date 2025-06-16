@@ -9,6 +9,6 @@ const { authenticateToken } = require("../middleware/jwt.middleware");
 router.use("/auth", authRoute);
 router.use("/messages", authenticateToken, messageRoute);
 router.use("/chats", authenticateToken, chatRoute);
-router.use("/users", userRoute);
+router.use("/users", authenticateToken, userRoute);
 
 module.exports = router;

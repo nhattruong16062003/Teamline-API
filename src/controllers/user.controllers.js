@@ -73,15 +73,13 @@ const updateUserInfo = async (req, res) => {
   }
 };
 
-const changePassword = async (req, res) => {};
+const changePassword = async (req, res) => { };
 
 const getUserByEmail = async (req, res) => {
   try {
-    console.log("helo");
     const { email } = req.params;
-    console.log(email);
     const userId = new mongoose.Types.ObjectId(req.userId);
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email, isVerify: true });
     let chat = null;
     if (!user) {
       return res.status(404).json({ message: "Tài khoản không tồn tại" });

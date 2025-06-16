@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 const Message = require("../models/Message");
 const Chat = require("../models/Chat");
 const User = require("../models/User");
+const { isLocalChatId } = require('../helpers/LocalChatId');
+
 
 class SocketService {
   constructor() {
@@ -68,8 +70,7 @@ class SocketService {
     const chatId = data.roomId || null;
     const message = data.message || null;
     const toUserId = data.toUserId || null;
-    const localId = data.localId || null;
-
+    let localChatId = null;
     if (!message || typeof message !== "string" || message.trim() === "") {
       console.log("Lỗi: Tin nhắn không hợp lệ", { chatId, message });
       socket.emit("error", { message: "Tin nhắn không hợp lệ" });
@@ -88,18 +89,9 @@ class SocketService {
     try {
       let chat;
 
-      // Nếu truyền chatId → kiểm tra chat có tồn tại
-      if (chatId && mongoose.Types.ObjectId.isValid(chatId)) {
-        chat = await Chat.findById(chatId);
-        if (!chat) {
-          console.log("Lỗi: Phòng chat không tồn tại");
-          socket.emit("error", { message: "Phòng chat không tồn tại" });
-          return;
-        }
-      }
-
-      // Nếu không truyền chatId → tạo mới
-      if (!chat) {
+      // nếu chatId là id tạm (tạo tin nhắn mới) thì kiểm tra có toUserId không và tạo chat trong db
+      if (isLocalChatId(chatId)) {
+        localChatId = chatId;
         if (!toUserId || !mongoose.Types.ObjectId.isValid(toUserId)) {
           console.log("Lỗi: toUserId không hợp lệ");
           socket.emit("error", { message: "ID người nhận không hợp lệ" });
@@ -119,6 +111,37 @@ class SocketService {
         await chat.save();
         console.log(`Chat mới đã được tạo: ${chat._id}`);
       }
+      // Nếu truyền chatId → kiểm tra chat có tồn tại
+      else if (chatId && mongoose.Types.ObjectId.isValid(chatId)) {
+        chat = await Chat.findById(chatId);
+        if (!chat) {
+          console.log("Lỗi: Phòng chat không tồn tại");
+          socket.emit("error", { message: "Phòng chat không tồn tại" });
+          return;
+        }
+      }
+
+      // Nếu không truyền chatId → tạo mới
+      // if (!chat) {
+      //   if (!toUserId || !mongoose.Types.ObjectId.isValid(toUserId)) {
+      //     console.log("Lỗi: toUserId không hợp lệ");
+      //     socket.emit("error", { message: "ID người nhận không hợp lệ" });
+      //     return;
+      //   }
+
+      //   chat = new Chat({
+      //     name: null,
+      //     type: "private",
+      //     members: [userId, toUserId],
+      //     admins: null,
+      //     owner: null,
+      //     pinnedMessages: [],
+      //     allowChat: true,
+      //   });
+
+      //   await chat.save();
+      //   console.log(`Chat mới đã được tạo: ${chat._id}`);
+      // }
 
       // Lưu tin nhắn
       const savedMessage = await Message.create({
@@ -162,6 +185,7 @@ class SocketService {
         messageSender: savedMessage.sender,
         localId: data.localId,
         messageId: savedMessage._id,
+        localChatId: localChatId,
       });
     } catch (error) {
       console.error("Lỗi khi gửi tin nhắn:", error);
