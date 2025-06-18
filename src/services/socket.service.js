@@ -300,6 +300,17 @@ class SocketService {
     }
   }
 
+  async newGroupChat(socket, io, newGroup) {
+    const members = newGroup?.members || [];
+
+    members.forEach((member) => {
+      const socketId = this.userToSocket.get(member._id.toString());
+      if (socketId) {
+        io.to(socketId).emit("group-new", { newGroup });
+      }
+    });
+  }
+
   disconnect(socket, io) {
     // Xóa user khỏi danh sách quản lý
     this.users.delete(socket.id);
