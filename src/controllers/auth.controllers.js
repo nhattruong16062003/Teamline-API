@@ -17,7 +17,7 @@ const {
 const register = async (req, res) => {
   const session = await mongoose.startSession();
   try {
-    const { username, password, email } = req.body;
+    const { name, password, email } = req.body;
     session.startTransaction();
     //Check dữ liệu đầu vào của email và password
     if (!emailValidator(email) || !passwordValidator(password)) {
@@ -46,7 +46,7 @@ const register = async (req, res) => {
 
     //Tạo mới user với dữ liệu đầu vào
     const newUser = new User({
-      username,
+      name,
       password,
       email,
     });
@@ -119,7 +119,7 @@ const login = async (req, res) => {
       message: "Login thành công",
       existingUser: {
         _id: existingUser._id,
-        username: existingUser.username,
+        name: existingUser.name,
         email: existingUser.email,
         avatar: existingUser.avatar,
       },
@@ -272,7 +272,7 @@ const getCurrentUser = async (req, res) => {
     return res.status(200).json({
       user: {
         _id: user._id,
-        username: user.username,
+        name: user.name,
         email: user.email,
         avatar: user.avatar,
       },

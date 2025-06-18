@@ -2,8 +2,7 @@ const mongoose = require("mongoose");
 const Message = require("../models/Message");
 const Chat = require("../models/Chat");
 const User = require("../models/User");
-const { isLocalChatId } = require('../helpers/LocalChatId');
-
+const { isLocalChatId } = require("../helpers/LocalChatId");
 
 class SocketService {
   constructor() {
@@ -30,7 +29,7 @@ class SocketService {
       this.users.set(socket.id, { userId: userId });
       this.userToSocket.set(userId, socket.id);
 
-      // Join room cá nhân
+      // Join room cá nhân, để phòng TH nếu user mở nhiều tap thì sau này mình gửi sự kiện cho user đó qua room của họ
       const roomName = `${userId}`;
       socket.join(roomName);
 
@@ -54,7 +53,6 @@ class SocketService {
       // Kiểm tra room có tồn tại không
       const chatRoom = await Chat.findById(roomId);
       if (!chatRoom) {
-        socket.emit("error", { message: "Phòng không tồn tại" });
         return;
       }
 

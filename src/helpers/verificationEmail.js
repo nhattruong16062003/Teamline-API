@@ -11,7 +11,7 @@ const prepareSendVerificationEmail = async (req, res, user) => {
     const html = pug.renderFile(
       path.join(__dirname, "../views", "verify-email.pug"),
       {
-        name: user.username,
+        name: user.name,
         verifyUrl: `${process.env.URL_FE}/verify-email?token=${verifyToken}`,
       }
     );
