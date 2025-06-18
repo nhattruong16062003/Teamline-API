@@ -5,15 +5,14 @@ const mongoose = require("mongoose");
 async function getChatsOfUser(req, res) {
   try {
     const userId = new mongoose.Types.ObjectId(req.userId);
-    console.log("userud", userId);
     const limit = parseInt(req.query.limit) || 15;
     const before = req.query.before ? new Date(req.query.before) : null;
 
     const chats = await Chat.aggregate([
-      // Chỉ lấy các chat mà user là thành viên
+      // Lọc các đoạn chat mà user là thành viên
       { $match: { members: userId } },
 
-      // Lấy tin nhắn cuối cùng
+      // Lấy tin nhắn cuối cùng (nếu có)
       {
         $lookup: {
           from: "messages",
@@ -31,7 +30,7 @@ async function getChatsOfUser(req, res) {
                     $match: { $expr: { $eq: ["$_id", "$$senderId"] } },
                   },
                   {
-                    $project: { _id: 1 }, //chỉ lấy sender._id
+                    $project: { _id: 1 },
                   },
                 ],
                 as: "sender",
@@ -48,31 +47,40 @@ async function getChatsOfUser(req, res) {
         },
       },
 
-      // Gộp mảng lastMessage thành object
+      // Gộp lastMessage thành object
       {
         $addFields: {
           lastMessage: { $arrayElemAt: ["$lastMessage", 0] },
         },
       },
 
-      // Lọc theo thời gian nếu có
+      // Tạo trường timesort để phục vụ phân trang (fallback về createdAt nếu không có tin nhắn)
+      {
+        $addFields: {
+          timesort: {
+            $ifNull: ["$lastMessage.createdAt", "$createdAt"],
+          },
+        },
+      },
+
+      // Lọc theo timesort nếu có before
       ...(before
         ? [
             {
               $match: {
-                "lastMessage.createdAt": { $lt: before },
+                timesort: { $lt: before },
               },
             },
           ]
         : []),
 
-      // Sắp xếp theo thời gian tin nhắn mới nhất
-      { $sort: { "lastMessage.createdAt": -1 } },
+      // Sắp xếp theo thời gian mới nhất
+      { $sort: { timesort: -1 } },
 
       // Giới hạn số kết quả
       { $limit: limit },
 
-      // Lấy thông tin thành viên (chỉ id, name, avatar)
+      // Lấy thông tin thành viên
       {
         $lookup: {
           from: "users",
@@ -86,7 +94,7 @@ async function getChatsOfUser(req, res) {
             {
               $project: {
                 _id: 1,
-                username: 1,
+                name: 1,
                 avatar: 1,
               },
             },
@@ -95,14 +103,15 @@ async function getChatsOfUser(req, res) {
         },
       },
 
-      //Chỉ giữ các trường cần thiết sau cùng
+      // Chỉ giữ các trường cần thiết
       {
         $project: {
           _id: 1,
           members: 1,
           lastMessage: 1,
-          name: 1, // giữ nếu bạn có tên nhóm
-          type: 1, // giữ nếu có loại nhóm (private/group)
+          name: 1,
+          type: 1,
+          timesort: 1, // cần để phân trang ở client
         },
       },
     ]);
@@ -110,13 +119,9 @@ async function getChatsOfUser(req, res) {
     return res.status(200).json({
       message: "Danh sách đoạn chat của user",
       data: chats,
-      nextCursor:
-        chats.length > 0
-          ? chats[chats.length - 1]?.lastMessage?.createdAt
-          : null,
+      nextCursor: chats.length > 0 ? chats[chats.length - 1]?.timesort : null,
     });
   } catch (error) {
-    //Kiểm tra lỗi ngoại cảnh
     const retryableErrors = [
       "MongoNetworkError",
       "MongooseServerSelectionError",
@@ -127,11 +132,207 @@ async function getChatsOfUser(req, res) {
     return res.status(500).json({
       message: "Lỗi khi lấy danh sách đoạn chat của user",
       error: error.message,
-      retryable: isRetryable, //giúp FE biết nên thử lại hay không
+      retryable: isRetryable,
     });
   }
 }
 
+const getChatById = async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ error: "Invalid chat ID" });
+  }
+
+  try {
+    const chatId = new mongoose.Types.ObjectId(id);
+
+    const chat = await Chat.aggregate([
+      { $match: { _id: chatId } },
+
+      // Lấy tin nhắn cuối cùng
+      {
+        $lookup: {
+          from: "messages",
+          let: { chatId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$chat", "$$chatId"] } } },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+            {
+              $lookup: {
+                from: "users",
+                let: { senderId: "$sender" },
+                pipeline: [
+                  { $match: { $expr: { $eq: ["$_id", "$$senderId"] } } },
+                  { $project: { _id: 1 } },
+                ],
+                as: "sender",
+              },
+            },
+            { $unwind: { path: "$sender", preserveNullAndEmptyArrays: true } },
+          ],
+          as: "lastMessage",
+        },
+      },
+
+      // Gộp mảng lastMessage thành object
+      {
+        $addFields: {
+          lastMessage: { $arrayElemAt: ["$lastMessage", 0] },
+        },
+      },
+
+      // Lấy thông tin thành viên
+      {
+        $lookup: {
+          from: "users",
+          let: { memberIds: "$members" },
+          pipeline: [
+            { $match: { $expr: { $in: ["$_id", "$$memberIds"] } } },
+            {
+              $project: {
+                _id: 1,
+                name: 1,
+                avatar: 1,
+              },
+            },
+          ],
+          as: "members",
+        },
+      },
+
+      // Chỉ giữ các trường cần thiết
+      {
+        $project: {
+          _id: 1,
+          members: 1,
+          lastMessage: 1,
+          name: 1,
+          type: 1,
+        },
+      },
+    ]);
+
+    if (!chat || chat.length === 0) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    return res.status(200).json(chat[0]);
+  } catch (err) {
+    console.error("Error fetching chat:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const createChatGroup = async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.userId);
+    const { name, memberIds } = req.body;
+
+    const memberObjectIds = memberIds.map(
+      (id) => new mongoose.Types.ObjectId(id)
+    );
+
+    if (!memberObjectIds.some((id) => id.equals(userId))) {
+      memberObjectIds.push(userId);
+    }
+
+    // Tạo nhóm mới
+    const newGroup = await Chat.create({
+      name,
+      type: "group-private",
+      members: memberObjectIds,
+      owner: userId,
+      admins: [userId],
+    });
+
+    // Gọi lại aggregate y hệt như trong getChatsOfUser
+    const chats = await Chat.aggregate([
+      { $match: { _id: newGroup._id } },
+
+      {
+        $lookup: {
+          from: "messages",
+          let: { chatId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$chat", "$$chatId"] } } },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+            {
+              $lookup: {
+                from: "users",
+                let: { senderId: "$sender" },
+                pipeline: [
+                  { $match: { $expr: { $eq: ["$_id", "$$senderId"] } } },
+                  { $project: { _id: 1 } },
+                ],
+                as: "sender",
+              },
+            },
+            {
+              $unwind: {
+                path: "$sender",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+          ],
+          as: "lastMessage",
+        },
+      },
+      {
+        $addFields: {
+          timesort: {
+            $cond: {
+              if: { $gt: [{ $type: "$lastMessage.createdAt" }, "missing"] },
+              then: "$lastMessage.createdAt",
+              else: "$createdAt",
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          let: { memberIds: "$members" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $in: ["$_id", "$$memberIds"] },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                name: 1,
+                avatar: 1,
+              },
+            },
+          ],
+          as: "members",
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          members: 1,
+          lastMessage: 1,
+          name: 1,
+          type: 1,
+          timesort: 1,
+        },
+      },
+    ]);
+
+    res.status(201).json({ group: chats[0] }); // trả về đúng format client cần
+  } catch (err) {
+    console.error("Error creating group:", err);
+    res.status(500).json({ message: "Tạo nhóm thất bại." });
+  }
+};
+
 module.exports = {
   getChatsOfUser,
+  getChatById,
+  createChatGroup,
 };

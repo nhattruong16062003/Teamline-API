@@ -13,13 +13,13 @@ const updateUserInfo = async (req, res) => {
 
   try {
     const userId = req.userId;
-    const { username, removeAvatar } = req.body;
+    const { name, removeAvatar } = req.body;
     const avatarFile = req.files.find((f) => f.fieldname === "avatar");
 
     const user = await User.findById(userId).session(session);
     if (!user) throw new Error("User not found");
 
-    const updateData = { username };
+    const updateData = { name };
     let oldAvatarFileId = getFileIdFromDriveUrl(user.avatar);
 
     // Nếu người dùng upload ảnh mới
@@ -60,7 +60,7 @@ const updateUserInfo = async (req, res) => {
     return res.status(200).json({
       user: {
         _id: updatedUser._id,
-        username: updatedUser.username,
+        name: updatedUser.name,
         email: updatedUser.email,
         avatar: updatedUser.avatar,
       },
@@ -73,7 +73,7 @@ const updateUserInfo = async (req, res) => {
   }
 };
 
-const changePassword = async (req, res) => { };
+const changePassword = async (req, res) => {};
 
 const getUserByEmail = async (req, res) => {
   try {
@@ -96,7 +96,7 @@ const getUserByEmail = async (req, res) => {
       message: "Thông tin user",
       user: {
         _id: user._id,
-        username: user.username,
+        name: user.name,
         avatar: user.avatar,
       },
       chatId: chat ? chat._id : null,
@@ -109,8 +109,50 @@ const getUserByEmail = async (req, res) => {
   }
 };
 
+const getConnectedUsers = async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.userId);
+
+    const chats = await Chat.find({ members: userId });
+
+    const connectedUserIds = new Set();
+    chats.forEach((chat) => {
+      chat.members.forEach((memberId) => {
+        if (memberId.toString() !== userId.toString()) {
+          connectedUserIds.add(memberId.toString());
+        }
+      });
+    });
+
+    const limit = parseInt(req.query.limit) || 10;
+    const lastId = req.query.lastId;
+
+    const query = {
+      _id: { $in: Array.from(connectedUserIds) },
+    };
+
+    if (lastId) {
+      query._id.$gt = new mongoose.Types.ObjectId(lastId);
+    }
+
+    const users = await User.find(query)
+      .sort({ _id: 1 })
+      .limit(limit)
+      .select("_id name avatar");
+
+    const hasMore = users.length === limit;
+    const nextCursor = hasMore ? users[users.length - 1]._id : null;
+
+    res.status(200).json({ users, hasMore, nextCursor });
+  } catch (err) {
+    console.error("Lỗi khi lấy danh sách người đã kết nối:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
 module.exports = {
   updateUserInfo,
   changePassword,
   getUserByEmail,
+  getConnectedUsers,
 };
