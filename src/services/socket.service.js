@@ -60,6 +60,7 @@ class SocketService {
 
       // Tham gia phòng
       socket.join(roomId);
+      socket.emit("room-joined"); // Nếu bạn muốn gửi confirm lại cho FE
       console.log(`${socket.id} đã tham gia phòng ${roomId}`);
     } catch (error) {
       console.error("Lỗi join room:", error);
@@ -70,18 +71,21 @@ class SocketService {
     const chatId = data.roomId || null;
     const message = data.message || null;
     const toUserId = data.toUserId || null;
+    const replyTo = data.replyTo || null;
+
     let localChatId = null;
     if (!message || typeof message !== "string" || message.trim() === "") {
       console.log("Lỗi: Tin nhắn không hợp lệ", { chatId, message });
-      socket.emit("error", { message: "Tin nhắn không hợp lệ" });
+      socket.emit("send-error", { message: "Tin nhắn không hợp lệ", localId: data.localId });
       return;
     }
 
     const userId = this.users.get(socket.id)?.userId;
     if (!userId) {
       console.log(`Lỗi: Người dùng chưa đăng ký cho socket ${socket.id}`);
-      socket.emit("error", {
+      socket.emit("send-error", {
         message: "Người dùng chưa đăng ký. Vui lòng đăng ký trước.",
+        localId: data.localId
       });
       return;
     }
@@ -94,7 +98,7 @@ class SocketService {
         localChatId = chatId;
         if (!toUserId || !mongoose.Types.ObjectId.isValid(toUserId)) {
           console.log("Lỗi: toUserId không hợp lệ");
-          socket.emit("error", { message: "ID người nhận không hợp lệ" });
+          socket.emit("send-error", { message: "ID người nhận không hợp lệ", localId: data.localId });
           return;
         }
 
@@ -116,32 +120,10 @@ class SocketService {
         chat = await Chat.findById(chatId);
         if (!chat) {
           console.log("Lỗi: Phòng chat không tồn tại");
-          socket.emit("error", { message: "Phòng chat không tồn tại" });
+          socket.emit("send-error", { message: "Phòng chat không tồn tại", localId: data.localId });
           return;
         }
       }
-
-      // Nếu không truyền chatId → tạo mới
-      // if (!chat) {
-      //   if (!toUserId || !mongoose.Types.ObjectId.isValid(toUserId)) {
-      //     console.log("Lỗi: toUserId không hợp lệ");
-      //     socket.emit("error", { message: "ID người nhận không hợp lệ" });
-      //     return;
-      //   }
-
-      //   chat = new Chat({
-      //     name: null,
-      //     type: "private",
-      //     members: [userId, toUserId],
-      //     admins: null,
-      //     owner: null,
-      //     pinnedMessages: [],
-      //     allowChat: true,
-      //   });
-
-      //   await chat.save();
-      //   console.log(`Chat mới đã được tạo: ${chat._id}`);
-      // }
 
       // Lưu tin nhắn
       const savedMessage = await Message.create({
@@ -149,7 +131,7 @@ class SocketService {
         content: message,
         type: "text",
         fileUrl: null,
-        replyTo: null,
+        replyTo: replyTo,
         reactions: [],
         seenBy: [],
         chat: chat._id,
@@ -189,7 +171,7 @@ class SocketService {
       });
     } catch (error) {
       console.error("Lỗi khi gửi tin nhắn:", error);
-      socket.emit("error", { message: "Không thể gửi tin nhắn" });
+      socket.emit("send-error", { message: "Không thể gửi tin nhắn", localId: data.localId });
     }
   }
 
@@ -232,11 +214,14 @@ class SocketService {
       message.reactions.push(user.userId);
       await message.save();
 
-      // Gửi lại cho các client
-      io.to(message.chat.toString()).emit("reaction-added", {
+      // Gửi lại cho các client (trừ bản thân)
+      socket.to(message.chat.toString()).emit("reaction-added", {
         messageId,
         userId: user.userId,
       });
+      //gửi lại cho chính bản thân
+      socket.emit("reaction-added", { messageId, userId: user.userId });
+      //gửi lại cho bản thân trong trường hợp sau khi refreshtoken chưa join room
     } catch (error) {
       console.error("Lỗi khi thêm reaction:", error);
       socket.emit("error", { message: "Không thể thêm reaction" });
@@ -284,11 +269,17 @@ class SocketService {
       );
       await message.save();
 
-      // Gửi lại cho các client
-      io.to(message.chat.toString()).emit("reaction-removed", {
+      // Gửi lại cho các client trừ bản thân
+      socket.to(message.chat.toString()).emit("reaction-removed", {
         messageId,
         userId: user.userId,
       });
+      //gửi lại cho chính bản thân
+      socket.emit("reaction-removed", {
+        messageId,
+        userId: user.userId,
+      });
+
     } catch (error) {
       console.error("Lỗi khi xóa reaction:", error);
       socket.emit("error", { message: "Không thể xóa reaction" });
@@ -309,29 +300,6 @@ class SocketService {
     } catch (error) {
       console.error("Lỗi leave room:", error);
     }
-  }
-
-  sendGroupMessage(socket, io, { roomName, message }) {
-    if (
-      !roomName ||
-      !message ||
-      typeof message !== "string" ||
-      message.trim() === ""
-    ) {
-      console.log("Lỗi: Tin nhắn hoặc phòng không hợp lệ", {
-        roomName,
-        message,
-      });
-      socket.emit("error", { message: "Tin nhắn hoặc phòng không hợp lệ" });
-      return;
-    }
-
-    const user = this.users.get(socket.id);
-    const username = user ? user.username : "Người dùng ẩn danh";
-    io.to(roomName).emit("group-message", {
-      from: username,
-      message,
-    });
   }
 
   disconnect(socket, io) {
