@@ -92,7 +92,7 @@ const login = async (req, res) => {
     const accessToken = jwt.sign(
       { id: existingUser._id },
       process.env.JWT_SECRET,
-      { expiresIn: "15m" }
+      { expiresIn: "1m" }
     );
 
     const refreshToken = jwt.sign(
@@ -105,7 +105,7 @@ const login = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production", // true nếu deploy production
       sameSite: "strict", // hoặc 'lax' tùy app
-      maxAge: 15 * 60 * 1000, // 15 phút
+      maxAge: 1 * 60 * 1000, // 1 phút
     });
     // Set refreshToken trong  cookie HttpOnly
     res.cookie("refreshToken", refreshToken, {
@@ -232,7 +232,7 @@ const refreshToken = async (req, res) => {
 
       // Tao accesstoken moi
       const accessToken = jwt.sign({ id: decoded.id }, process.env.JWT_SECRET, {
-        expiresIn: "15m",
+        expiresIn: "1m",
       });
 
       // Tao refresh token moi
@@ -245,7 +245,7 @@ const refreshToken = async (req, res) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "Strict",
-        maxAge: 15 * 60 * 1000, // 15 phút
+        maxAge: 1 * 60 * 1000, // 1 phút
       });
       res.cookie("refreshToken", newRefreshToken, {
         httpOnly: true,

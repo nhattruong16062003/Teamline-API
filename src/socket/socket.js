@@ -7,8 +7,7 @@ module.exports = (io) => {
   const chatService = new ChatService();
 
   io.on("connection", (socket) => {
-    console.log("da chay vao connect");
-    //kiểm tra token t=khi kết nối lần đầu
+    //kiểm tra token khi kết nối lần đầu
     // Lấy token từ cookie
     const cookies = cookie.parse(socket.handshake.headers.cookie || "");
     const accessToken = cookies.accessToken;

@@ -23,8 +23,16 @@ const getMessages = async (req, res) => {
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
-            .populate('sender', 'name')
-            .populate('replyTo', 'content')
+            .populate('sender', 'name avatar') // Lấy thông tin người gửi hiện tại
+            .populate({
+                path: 'replyTo',
+                select: 'content sender', // Lấy nội dung và người gửi của tin nhắn được reply
+                populate: {
+                    path: 'sender', // Populate sâu vào sender của replyTo
+                    select: 'name' // Chỉ lấy name (hoặc thêm avatar nếu cần)
+                }
+            })
+            .populate('chat', 'type') // Lấy thông tin loại chat (nếu cần)
             .lean();
 
         if (!messages || messages.length === 0) {
@@ -44,14 +52,6 @@ const getMessages = async (req, res) => {
             totalPages,
             totalMessages,
         });
-        // setTimeout(() => {
-        //     return res.status(200).json({
-        //         messages: messages.reverse(),
-        //         currentPage: page,
-        //         totalPages,
-        //         totalMessages,
-        //     });
-        // }, 5000); // Delay
     } catch (error) {
         console.error("Lỗi khi lấy tin nhắn:", error);
         return res.status(500).json({
