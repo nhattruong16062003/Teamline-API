@@ -74,6 +74,12 @@ module.exports = (io) => {
       });
     });
 
+    socket.on("group-created", ({ newGroup }) => {
+      verifySocketToken(socket, () => {
+        chatService.newGroupChat(socket, io, newGroup);
+      });
+    });
+
     socket.on("disconnect", () => {
       chatService.disconnect(socket, io);
     });
