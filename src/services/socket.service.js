@@ -146,16 +146,16 @@ class SocketService {
 
       // Populate để trả về giống format khi load danh sách
       const populatedMessage = await Message.findById(savedMessage._id)
-        .populate('sender', 'name avatar')
+        .populate("sender", "name avatar")
         .populate({
-          path: 'replyTo',
-          select: 'content sender',
+          path: "replyTo",
+          select: "content sender",
           populate: {
-            path: 'sender',
-            select: 'name'
-          }
+            path: "sender",
+            select: "name",
+          },
         })
-        .populate('chat', 'type')
+        .populate("chat", "type")
         .lean();
 
       // Lấy tất cả socketId trong room hiện tại
@@ -325,15 +325,17 @@ class SocketService {
     }
   }
 
-  async newGroupChat(socket, io, newGroup) {
-    const members = newGroup?.members || [];
-    members.forEach((member) => {
-      const socketId = this.userToSocket.get(member._id);
+  async newGroupChat(socket, io, newGroup, knownUsers, unknownUsers) {
+    //Gửi sự kiện được thêm vào nhóm cho những member mà có chat với mình trước đó
+    knownUsers?.forEach((member) => {
+      const socketId = this.userToSocket.get(member?._id);
       if (socketId) {
-        console.log("co emit su kine", socketId);
         io.to(socketId).emit("group-new", { newGroup });
       }
     });
+
+    //Gửi thông báo có người lạ thêm vào nhóm (đối với những user mình chưa quen biết)
+    //Phần này sẽ dược thực hiện khi có hệ thống thông báo cho web này
   }
 
   disconnect(socket, io) {
