@@ -144,12 +144,26 @@ class SocketService {
         chat: chat._id,
       });
 
+      // Populate để trả về giống format khi load danh sách
+      const populatedMessage = await Message.findById(savedMessage._id)
+        .populate('sender', 'name avatar')
+        .populate({
+          path: 'replyTo',
+          select: 'content sender',
+          populate: {
+            path: 'sender',
+            select: 'name'
+          }
+        })
+        .populate('chat', 'type')
+        .lean();
+
       // Lấy tất cả socketId trong room hiện tại
       const socketIdsInRoom =
         io.sockets.adapter.rooms.get(chat._id.toString()) || new Set();
 
-      // Gửi cho tất cả socket trong room
-      io.to(chat._id.toString()).emit("received-message", savedMessage);
+      // Gửi cho tất cả socket trong room trừ bản thân
+      socket.to(chat._id.toString()).emit("received-message", populatedMessage);
 
       // Gửi trực tiếp cho các user chưa vào room (nhưng đang online)
       for (const memberId of chat.members) {
@@ -160,7 +174,7 @@ class SocketService {
         if (toSocketId && io.sockets.sockets.has(toSocketId)) {
           // Nếu socket đã tham gia room thì không gửi lại nữa
           if (!socketIdsInRoom.has(toSocketId)) {
-            io.to(toSocketId).emit("received-message", savedMessage);
+            io.to(toSocketId).emit("received-message", populatedMessage);
           }
         }
       }
