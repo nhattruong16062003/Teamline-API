@@ -74,7 +74,10 @@ class SocketService {
     let localChatId = null;
     if (!message || typeof message !== "string" || message.trim() === "") {
       console.log("Lỗi: Tin nhắn không hợp lệ", { chatId, message });
-      socket.emit("send-error", { message: "Tin nhắn không hợp lệ", localId: data.localId });
+      socket.emit("send-error", {
+        message: "Tin nhắn không hợp lệ",
+        localId: data.localId,
+      });
       return;
     }
 
@@ -83,7 +86,7 @@ class SocketService {
       console.log(`Lỗi: Người dùng chưa đăng ký cho socket ${socket.id}`);
       socket.emit("send-error", {
         message: "Người dùng chưa đăng ký. Vui lòng đăng ký trước.",
-        localId: data.localId
+        localId: data.localId,
       });
       return;
     }
@@ -96,7 +99,10 @@ class SocketService {
         localChatId = chatId;
         if (!toUserId || !mongoose.Types.ObjectId.isValid(toUserId)) {
           console.log("Lỗi: toUserId không hợp lệ");
-          socket.emit("send-error", { message: "ID người nhận không hợp lệ", localId: data.localId });
+          socket.emit("send-error", {
+            message: "ID người nhận không hợp lệ",
+            localId: data.localId,
+          });
           return;
         }
 
@@ -118,7 +124,10 @@ class SocketService {
         chat = await Chat.findById(chatId);
         if (!chat) {
           console.log("Lỗi: Phòng chat không tồn tại");
-          socket.emit("send-error", { message: "Phòng chat không tồn tại", localId: data.localId });
+          socket.emit("send-error", {
+            message: "Phòng chat không tồn tại",
+            localId: data.localId,
+          });
           return;
         }
       }
@@ -137,16 +146,16 @@ class SocketService {
 
       // Populate để trả về giống format khi load danh sách
       const populatedMessage = await Message.findById(savedMessage._id)
-        .populate('sender', 'name avatar')
+        .populate("sender", "name avatar")
         .populate({
-          path: 'replyTo',
-          select: 'content sender',
+          path: "replyTo",
+          select: "content sender",
           populate: {
-            path: 'sender',
-            select: 'name'
-          }
+            path: "sender",
+            select: "name",
+          },
         })
-        .populate('chat', 'type')
+        .populate("chat", "type")
         .lean();
 
       // Lấy tất cả socketId trong room hiện tại
@@ -183,7 +192,10 @@ class SocketService {
       });
     } catch (error) {
       console.error("Lỗi khi gửi tin nhắn:", error);
-      socket.emit("send-error", { message: "Không thể gửi tin nhắn", localId: data.localId });
+      socket.emit("send-error", {
+        message: "Không thể gửi tin nhắn",
+        localId: data.localId,
+      });
     }
   }
 
@@ -291,7 +303,6 @@ class SocketService {
         messageId,
         userId: user.userId,
       });
-
     } catch (error) {
       console.error("Lỗi khi xóa reaction:", error);
       socket.emit("error", { message: "Không thể xóa reaction" });
@@ -314,15 +325,17 @@ class SocketService {
     }
   }
 
-  async newGroupChat(socket, io, newGroup) {
-    const members = newGroup?.members || [];
-
-    members.forEach((member) => {
-      const socketId = this.userToSocket.get(member._id.toString());
+  async newGroupChat(socket, io, newGroup, knownUsers, unknownUsers) {
+    //Gửi sự kiện được thêm vào nhóm cho những member mà có chat với mình trước đó
+    knownUsers?.forEach((member) => {
+      const socketId = this.userToSocket.get(member?._id);
       if (socketId) {
         io.to(socketId).emit("group-new", { newGroup });
       }
     });
+
+    //Gửi thông báo có người lạ thêm vào nhóm (đối với những user mình chưa quen biết)
+    //Phần này sẽ dược thực hiện khi có hệ thống thông báo cho web này
   }
 
   disconnect(socket, io) {

@@ -79,6 +79,7 @@ const getUserByEmail = async (req, res) => {
   try {
     const { email } = req.params;
     const userId = new mongoose.Types.ObjectId(req.userId);
+    console.log(email);
     const user = await User.findOne({ email, isVerify: true });
     let chat = null;
     if (!user) {
@@ -86,7 +87,7 @@ const getUserByEmail = async (req, res) => {
     }
 
     // Kiểm tra xem có chat nào giữa người tìm kiếm và user._id hay không
-    if (userId.toString() != user._id.toString()) {
+    if (userId.toString() !== user._id.toString()) {
       chat = await Chat.findOne({
         type: "private",
         members: { $all: [userId, user._id], $size: 2 },
@@ -102,33 +103,34 @@ const getUserByEmail = async (req, res) => {
       chatId: chat ? chat._id : null,
     });
   } catch (error) {
-    console.log(error.message);
     return res
       .status(500)
       .json({ message: "Đã có lỗi xảy ra", error: error.message });
   }
 };
-
 const getConnectedUsers = async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.userId);
 
     const chats = await Chat.find({ members: userId });
 
-    const connectedUserIds = new Set();
+    // Tạo map từ connectedUserId -> chatId
+    const connectedUserMap = new Map();
     chats.forEach((chat) => {
       chat.members.forEach((memberId) => {
         if (memberId.toString() !== userId.toString()) {
-          connectedUserIds.add(memberId.toString());
+          connectedUserMap.set(memberId.toString(), chat._id);
         }
       });
     });
+
+    const connectedUserIds = Array.from(connectedUserMap.keys());
 
     const limit = parseInt(req.query.limit) || 10;
     const lastId = req.query.lastId;
 
     const query = {
-      _id: { $in: Array.from(connectedUserIds) },
+      _id: { $in: connectedUserIds },
     };
 
     if (lastId) {
@@ -140,10 +142,16 @@ const getConnectedUsers = async (req, res) => {
       .limit(limit)
       .select("_id name avatar");
 
+    // Gắn chatId vào từng user
+    const usersWithChatId = users.map((user) => ({
+      ...user.toObject(),
+      chatId: connectedUserMap.get(user._id.toString()),
+    }));
+
     const hasMore = users.length === limit;
     const nextCursor = hasMore ? users[users.length - 1]._id : null;
 
-    res.status(200).json({ users, hasMore, nextCursor });
+    res.status(200).json({ users: usersWithChatId, hasMore, nextCursor });
   } catch (err) {
     console.error("Lỗi khi lấy danh sách người đã kết nối:", err);
     res.status(500).json({ error: "Server error" });
