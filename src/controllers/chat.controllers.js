@@ -126,13 +126,13 @@ async function getChatsOfUser(req, res) {
       "MongoNetworkError",
       "MongooseServerSelectionError",
     ];
-    const isRetryable =
+    const isRetryAble =
       retryableErrors.includes(error.name) || error.message.includes("ECONN");
 
     return res.status(500).json({
       message: "Lỗi khi lấy danh sách đoạn chat của user",
       error: error.message,
-      retryable: isRetryable,
+      retryAble: isRetryAble,
     });
   }
 }

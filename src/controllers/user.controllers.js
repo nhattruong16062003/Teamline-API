@@ -86,7 +86,7 @@ const getUserByEmail = async (req, res) => {
     }
 
     // Kiểm tra xem có chat nào giữa người tìm kiếm và user._id hay không
-    if (userId.toString() != user._id.toString()) {
+    if (userId.toString() !== user._id.toString()) {
       chat = await Chat.findOne({
         type: "private",
         members: { $all: [userId, user._id], $size: 2 },
@@ -102,7 +102,6 @@ const getUserByEmail = async (req, res) => {
       chatId: chat ? chat._id : null,
     });
   } catch (error) {
-    console.log(error.message);
     return res
       .status(500)
       .json({ message: "Đã có lỗi xảy ra", error: error.message });
