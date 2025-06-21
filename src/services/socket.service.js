@@ -3,11 +3,20 @@ const Message = require("../models/Message");
 const Chat = require("../models/Chat");
 const User = require("../models/User");
 const { isLocalChatId } = require("../helpers/LocalChatId");
+const { createGroup } = require("../services/chat.services");
 
 class SocketService {
   constructor() {
     this.users = new Map(); // socketId -> userId
     this.userToSocket = new Map(); // userId -> socketId
+  }
+
+  getUsersMap() {
+    return this.users;
+  }
+
+  getUserToSocketMap() {
+    return this.userToSocket;
   }
 
   async joinUser(socket, io, { data }) {
@@ -325,17 +334,35 @@ class SocketService {
     }
   }
 
-  async newGroupChat(socket, io, newGroup, knownUsers, unknownUsers) {
-    //Gửi sự kiện được thêm vào nhóm cho những member mà có chat với mình trước đó
-    knownUsers?.forEach((member) => {
-      const socketId = this.userToSocket.get(member?._id);
-      if (socketId) {
-        io.to(socketId).emit("group-new", { newGroup });
-      }
-    });
+  async newGroupChat(socket, io, groupData, callback) {
+    try {
+      const currentUserId = socket?.userId;
+      const groupName = groupData?.name;
+      const knownUsers = groupData?.knownUsers || [];
+      const unknownUsers = groupData?.unknownUsers || [];
+      const memberIds = knownUsers.map((user) => user._id);
 
-    //Gửi thông báo có người lạ thêm vào nhóm (đối với những user mình chưa quen biết)
-    //Phần này sẽ dược thực hiện khi có hệ thống thông báo cho web này
+      const newGroup = await createGroup(currentUserId, groupName, memberIds);
+
+      knownUsers?.forEach((member) => {
+        const socketId = this.userToSocket?.get(member?._id);
+        if (socketId) {
+          io.to(socketId).emit("group-new", { newGroup });
+        }
+      });
+
+      // unknownUsers?.forEach((member) => {
+      //   const socketId = this.userToSocket?.get(member?._id);
+      //   if (socketId) {
+      //     io.to(socketId).emit("notification-new", { newGroup });
+      //   }
+      // });
+
+      callback({ data: newGroup });
+    } catch (error) {
+      console.error("Error in newGroupChat:", error);
+      callback({ error: "Tạo nhóm thất bại!" });
+    }
   }
 
   disconnect(socket, io) {
