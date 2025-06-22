@@ -107,8 +107,76 @@ const markAllNotificationsAsRead = async (req, res) => {
   }
 };
 
+//Hàm xóa mềm notification
+const dismissNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ message: "Missing notification ID" });
+    }
+
+    const notification = await Notification.findById(id);
+
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found" });
+    }
+
+    // Cập nhật để ẩn thông báo
+    notification.isHidden = true;
+    notification.hiddenAt = new Date();
+
+    await notification.save();
+
+    return res
+      .status(200)
+      .json({ message: "Notification dismissed successfully" });
+  } catch (error) {
+    console.error("Error dismissing notification:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+//Xóa nhiều thông báo cùng lúc
+const dismissMultipleNotifications = async (req, res) => {
+  console.log("da chay vao nay");
+  try {
+    const { notificationIds } = req.body;
+    console.log(notificationIds);
+
+    if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Danh sách notificationIds không hợp lệ." });
+    }
+
+    const result = await Notification.updateMany(
+      {
+        _id: { $in: notificationIds },
+        isHidden: false,
+      },
+      {
+        $set: {
+          isHidden: true,
+          hiddenAt: new Date(),
+        },
+      }
+    );
+
+    return res.status(200).json({
+      message: "Đã ẩn thông báo thành công.",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Lỗi khi ẩn thông báo:", error);
+    return res.status(500).json({ message: "Đã xảy ra lỗi khi ẩn thông báo." });
+  }
+};
+
 module.exports = {
   getNotifications,
   markMultipleNotificationsAsRead,
   markAllNotificationsAsRead,
+  dismissNotification,
+  dismissMultipleNotifications,
 };
