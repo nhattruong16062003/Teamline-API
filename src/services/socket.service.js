@@ -4,6 +4,7 @@ const Chat = require("../models/Chat");
 const User = require("../models/User");
 const { isLocalChatId } = require("../helpers/LocalChatId");
 const { createGroup } = require("../services/chat.services");
+const Notification = require("../models/Notification");
 
 class SocketService {
   constructor() {
@@ -351,12 +352,35 @@ class SocketService {
         }
       });
 
-      // unknownUsers?.forEach((member) => {
-      //   const socketId = this.userToSocket?.get(member?._id);
-      //   if (socketId) {
-      //     io.to(socketId).emit("notification-new", { newGroup });
-      //   }
-      // });
+      unknownUsers?.forEach(async (member) => {
+        try {
+          const newNotification = await Notification.create({
+            receiver: member._id,
+            type: "group_invite",
+            message: `${
+              currentUserId || "Một người dùng"
+            } đã mời bạn vào nhóm "${groupName}"`,
+            link: `/groups/${newGroup._id}`, // Giả định route tới nhóm
+            sourceId: newGroup._id,
+            sourceType: "Chat",
+            meta: {
+              groupName,
+              inviterId: currentUserId,
+            },
+          });
+
+          const socketId = this.userToSocket?.get(member._id);
+          if (socketId) {
+            io.to(socketId).emit("notification-new", newNotification);
+          }
+        } catch (err) {
+          console.error(
+            "Failed to create or emit notification to",
+            member._id,
+            err
+          );
+        }
+      });
 
       callback({ data: newGroup });
     } catch (error) {
