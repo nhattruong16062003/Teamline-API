@@ -173,10 +173,33 @@ const dismissMultipleNotifications = async (req, res) => {
   }
 };
 
+//Hàm lấy số lượng notification mà user chưa đọc
+const getUnreadNotificationCount = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+
+    const count = await Notification.countDocuments({
+      receiver: userId,
+      isRead: false,
+      isHidden: false,
+    });
+
+    return res.status(200).json({ unreadCount: count });
+  } catch (error) {
+    console.error("Error getting unread notification count:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 module.exports = {
   getNotifications,
   markMultipleNotificationsAsRead,
   markAllNotificationsAsRead,
   dismissNotification,
   dismissMultipleNotifications,
+  getUnreadNotificationCount,
 };
