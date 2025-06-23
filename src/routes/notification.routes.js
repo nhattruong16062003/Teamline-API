@@ -6,9 +6,11 @@ const {
   markAllNotificationsAsRead,
   dismissNotification,
   dismissMultipleNotifications,
+  getUnreadNotificationCount,
 } = require("../controllers/notification.controllers");
 
 router.get("/", getNotifications);
+router.get("/unread", getUnreadNotificationCount);
 router.patch("/mark-read", markMultipleNotificationsAsRead);
 router.patch("/mark-all-read", markAllNotificationsAsRead);
 router.patch("/dismiss-multiple", dismissMultipleNotifications);
