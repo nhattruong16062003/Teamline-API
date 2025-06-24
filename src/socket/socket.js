@@ -35,46 +35,46 @@ module.exports = (io) => {
     }
 
     //join room theo userId và đăng ký người dùng
-    socket.on("join-user", (data) => {
-      verifySocketToken(socket, () => {
+    socket.on("join-user", (data, callback) => {
+      verifySocketToken(socket, callback, () => {
         chatService.joinUser(socket, io, { data });
       });
     });
 
-    socket.on("join-room", (data) => {
-      verifySocketToken(socket, () => {
+    socket.on("join-room", (data, callback) => {
+      verifySocketToken(socket, callback, () => {
         chatService.joinRoom(socket, io, { data });
       });
     });
 
-    socket.on("leave-room", (data) => {
-      verifySocketToken(socket, () => {
+    socket.on("leave-room", (data, callback) => {
+      verifySocketToken(socket, callback, () => {
         chatService.leaveRoom(socket, io, { data });
       });
     });
 
-    socket.on("send-message", (data) => {
-      verifySocketToken(socket, () => {
+    socket.on("send-message", (data, callback) => {
+      verifySocketToken(socket, callback, () => {
         chatService.sendMessage(socket, io, { data });
       });
     });
 
     //Sự kiện reaction tin nhắn
-    socket.on("add-reaction", (messageId) => {
-      verifySocketToken(socket, () => {
+    socket.on("add-reaction", (messageId, callback) => {
+      verifySocketToken(socket, callback, () => {
         chatService.addReaction(socket, io, messageId);
       });
     });
 
     //Sự kiện xóa reaction tin nhắn
-    socket.on("remove-reaction", (messageId) => {
-      verifySocketToken(socket, () => {
+    socket.on("remove-reaction", (messageId, callback) => {
+      verifySocketToken(socket, callback, () => {
         chatService.removeReaction(socket, io, messageId);
       });
     });
 
     socket.on("group-created", async (groupData, callback) => {
-      verifySocketToken(socket, () => {
+      verifySocketToken(socket, callback, () => {
         chatService.newGroupChat(socket, io, groupData, callback);
       });
     });
