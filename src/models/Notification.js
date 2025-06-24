@@ -55,7 +55,7 @@ const notificationSchema = new mongoose.Schema(
       default: {},
     },
 
-    expireAt: { type: Date, default: null }, // TTL nếu cần xoá tự động
+    expireAt: { type: Date, default: null }, // TTL nếu cần xoá tự động khi noti hết hạn
   },
   { timestamps: true }
 );
