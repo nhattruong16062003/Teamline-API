@@ -1,4 +1,5 @@
 const Notification = require("../models/Notification");
+const { updateHiddenAndExpire } = require("../services/notification.services");
 
 // GET /notifications?cursor=<timestamp>_<id>&limit=10
 const getNotifications = async (req, res) => {
@@ -16,7 +17,8 @@ const getNotifications = async (req, res) => {
 
   const items = await Notification.find(query)
     .sort({ createdAt: -1, _id: -1 })
-    .limit(+limit);
+    .limit(+limit)
+    .select("_id isRead link message meta sourceId sourceType type createdAt"); // Chỉ lấy các trường này
 
   let nextCursor = null;
   if (items.length === +limit) {
@@ -59,26 +61,26 @@ const markMultipleNotificationsAsRead = async (req, res) => {
         .json({ error: "notificationIds must be an array" });
     }
 
-    const result = await Notification.updateMany(
-      {
-        _id: { $in: notificationIds },
-        isRead: false,
-      },
-      {
-        $set: {
-          isRead: true,
-          readAt: new Date(),
-        },
-      }
-    );
+    const notifications = await Notification.find({
+      _id: { $in: notificationIds },
+      isRead: false,
+    });
 
-    res.json({
+    let modifiedCount = 0;
+
+    for (const noti of notifications) {
+      updateHiddenAndExpire({ noti, action: "read" });
+      await noti.save();
+      modifiedCount++;
+    }
+
+    return res.json({
       success: true,
-      modifiedCount: result.modifiedCount,
+      modifiedCount,
     });
   } catch (error) {
     console.error("Error marking notifications as read:", error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -115,18 +117,13 @@ const dismissNotification = async (req, res) => {
     if (!id) {
       return res.status(400).json({ message: "Missing notification ID" });
     }
-
-    const notification = await Notification.findById(id);
-
-    if (!notification) {
+    const noti = await Notification.findById(id);
+    if (!noti) {
       return res.status(404).json({ message: "Notification not found" });
     }
-
-    // Cập nhật để ẩn thông báo
-    notification.isHidden = true;
-    notification.hiddenAt = new Date();
-
-    await notification.save();
+    // Cập nhật để ẩn thông
+    updateHiddenAndExpire({ noti, action: "hide" });
+    await noti.save();
 
     return res
       .status(200)

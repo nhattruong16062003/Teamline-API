@@ -32,8 +32,8 @@ const notificationSchema = new mongoose.Schema(
     isRead: { type: Boolean, default: false },
     readAt: { type: Date, default: null },
 
-    isHandled: { type: Boolean, default: false },
-    handledAt: { type: Date, default: null },
+    // isHandled: { type: Boolean, default: false },
+    // handledAt: { type: Date, default: null },
 
     isHidden: { type: Boolean, default: false },
     hiddenAt: { type: Date, default: null },
