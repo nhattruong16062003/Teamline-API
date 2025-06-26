@@ -79,6 +79,12 @@ module.exports = (io) => {
       });
     });
 
+    socket.on("accept-group-invite", async (data, callback) => {
+      verifySocketToken(socket, callback, () => {
+        chatService.acceptGroupInvite(socket, io, data, callback);
+      });
+    });
+
     socket.on("disconnect", () => {
       chatService.disconnect(socket, io);
     });
