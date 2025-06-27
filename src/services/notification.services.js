@@ -8,7 +8,6 @@ function getNotiMaxLifetime(createdAt) {
 }
 
 function updateHiddenAndExpire({ noti, action }) {
-  console.log("du lieu noti", noti);
   const now = new Date();
   const maxLife = getNotiMaxLifetime(noti.createdAt);
 

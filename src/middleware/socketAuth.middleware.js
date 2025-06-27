@@ -7,9 +7,8 @@ const verifySocketToken = (socket, callback, next) => {
 
   if (!accessToken) {
     // socket.emit("token-expired", { message: "No access token provided." });
-    callback("token-expired");
     console.log("No access token found in cookies.");
-    return; // Không cho phép xử lý tiếp
+    return callback("token-expired");
   }
 
   try {
@@ -19,12 +18,12 @@ const verifySocketToken = (socket, callback, next) => {
   } catch (err) {
     if (err.name === "TokenExpiredError") {
       //   socket.emit("token-expired", { message: "Access token has expired." });
-      callback("token-expired");
       console.error("Token verification error:", err.message);
+      return callback("token-expired");
     } else {
       //   socket.emit("token-invalid", { message: "Invalid access token." });
-      callback("token-expired");
       console.error("Token verification error:", err.message);
+      return callback("token-expired");
     }
     // Không gọi next -> chặn sự kiện tiếp theo
   }

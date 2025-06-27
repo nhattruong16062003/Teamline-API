@@ -6,6 +6,7 @@ const { isLocalChatId } = require("../helpers/LocalChatId");
 const { createGroup } = require("../services/chat.services");
 const Notification = require("../models/Notification");
 const { updateHiddenAndExpire } = require("../services/notification.services");
+const { formatChatPipeline } = require("../services/chat.services");
 
 class SocketService {
   constructor() {
@@ -393,6 +394,104 @@ class SocketService {
       callback({ error: "Tạo nhóm thất bại!" });
     }
   }
+  // async acceptGroupInvite(socket, io, data, callback) {
+  //   const session = await mongoose.startSession();
+  //   session.startTransaction();
+
+  //   try {
+  //     const currentUserId = socket?.userId;
+  //     const { notifId, groupId, userName } = data;
+
+  //     if (!mongoose.Types.ObjectId.isValid(groupId)) {
+  //       await session.abortTransaction();
+  //       session.endSession();
+  //       return callback({
+  //         error: true,
+  //         error_code: "GROUP_NOT_FOUND",
+  //         message: "Nhóm không tồn tại",
+  //       });
+  //     }
+
+  //     const group = await Chat.findById(groupId).session(session);
+  //     if (!group) {
+  //       await session.abortTransaction();
+  //       session.endSession();
+  //       return callback({
+  //         error: true,
+  //         error_code: "GROUP_NOT_FOUND",
+  //         message: "Nhóm không tồn tại",
+  //       });
+  //     }
+
+  //     if (group.members.includes(currentUserId)) {
+  //       await session.abortTransaction();
+  //       session.endSession();
+  //       return callback({
+  //         success: true,
+  //         message: `Bạn đã là thành viên của nhóm ${group.name}`,
+  //       });
+  //     }
+
+  //     group.members.push(currentUserId);
+  //     await group.save({ session });
+
+  //     // Xử lý notification
+  //     const notification = await Notification.findById(notifId).session(
+  //       session
+  //     );
+  //     if (!notification) {
+  //       await session.abortTransaction();
+  //       session.endSession();
+  //       return callback({
+  //         error: true,
+  //         message: "Notification not found",
+  //       });
+  //     }
+
+  //     updateHiddenAndExpire({ noti: notification, action: "hide" });
+  //     await notification.save({ session });
+
+  //     // Commit transaction sau khi tất cả đều thành công
+  //     await session.commitTransaction();
+  //     session.endSession();
+
+  //     // Gửi socket event sau khi commit
+  //     group.members?.forEach((memberId) => {
+  //       const socketId = this.userToSocket?.get(memberId.toString());
+  //       if (socketId) {
+  //         io.to(socketId).emit("user-joined-group", {
+  //           userId: currentUserId,
+  //           userName,
+  //           groupId,
+  //         });
+  //       }
+  //     });
+
+  //     // Thêm người dùng mới vào room socket
+  //     // socket.join(groupId);
+
+  //     // Gửi xác nhận cho chính người dùng mới
+  //     // socket.emit("joined-group-success", {
+  //     //   groupId,
+  //     //   groupName: group.name,
+  //     //   members: group.members,
+  //     // });
+
+  //     return callback(null, {
+  //       success: true,
+  //       message: `Bạn đã trở thành thành viên của nhóm ${group.name}`,
+  //     });
+  //   } catch (error) {
+  //     await session.abortTransaction();
+  //     session.endSession();
+  //     console.error("Lỗi khi chấp nhận lời mời vào nhóm:", error);
+  //     return callback({
+  //       error: true,
+  //       message: "Đã có lỗi xảy ra khi tham gia nhóm",
+  //     });
+  //   }
+  // }
+
   async acceptGroupInvite(socket, io, data, callback) {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -401,6 +500,7 @@ class SocketService {
       const currentUserId = socket?.userId;
       const { notifId, groupId, userName } = data;
 
+      // Validate input
       if (!mongoose.Types.ObjectId.isValid(groupId)) {
         await session.abortTransaction();
         session.endSession();
@@ -411,6 +511,7 @@ class SocketService {
         });
       }
 
+      // Check group existence
       const group = await Chat.findById(groupId).session(session);
       if (!group) {
         await session.abortTransaction();
@@ -422,6 +523,7 @@ class SocketService {
         });
       }
 
+      // Check if user already in group
       if (group.members.includes(currentUserId)) {
         await session.abortTransaction();
         session.endSession();
@@ -431,10 +533,11 @@ class SocketService {
         });
       }
 
+      // Add user to group
       group.members.push(currentUserId);
       await group.save({ session });
 
-      // Xử lý notification
+      // Process notification
       const notification = await Notification.findById(notifId).session(
         session
       );
@@ -447,50 +550,58 @@ class SocketService {
         });
       }
 
-      updateHiddenAndExpire({ noti: notification, action: "hideas" });
+      updateHiddenAndExpire({ noti: notification, action: "hide" });
       await notification.save({ session });
 
-      // Commit transaction sau khi tất cả đều thành công
+      // Get full group info after update
+      const [updatedGroup] = await Chat.aggregate([
+        { $match: { _id: group._id } },
+        ...formatChatPipeline(),
+      ]).session(session);
+
+      // Commit transaction
       await session.commitTransaction();
       session.endSession();
 
-      // Gửi socket event sau khi commit
+      // Notify all group members
       group.members?.forEach((memberId) => {
         const socketId = this.userToSocket?.get(memberId.toString());
         if (socketId) {
           io.to(socketId).emit("user-joined-group", {
             userId: currentUserId,
             userName,
-            groupId,
+            group: updatedGroup,
           });
         }
       });
 
-      // Thêm người dùng mới vào room socket
-      // socket.join(groupId);
-
-      // Gửi xác nhận cho chính người dùng mới
-      // socket.emit("joined-group-success", {
-      //   groupId,
-      //   groupName: group.name,
-      //   members: group.members,
-      // });
-
-      return callback(null, {
+      return callback({
         success: true,
         message: `Bạn đã trở thành thành viên của nhóm ${group.name}`,
       });
     } catch (error) {
+      // Error handling
       await session.abortTransaction();
       session.endSession();
+
       console.error("Lỗi khi chấp nhận lời mời vào nhóm:", error);
-      return callback({
+
+      const errorResponse = {
         error: true,
         message: "Đã có lỗi xảy ra khi tham gia nhóm",
-      });
+      };
+
+      // Specific error cases
+      if (error.message.includes("GROUP_NOT_FOUND")) {
+        errorResponse.error_code = "GROUP_NOT_FOUND";
+        errorResponse.message = "Nhóm không tồn tại";
+      } else if (error.message.includes("NOTIFICATION_NOT_FOUND")) {
+        errorResponse.message = "Thông báo không tồn tại";
+      }
+
+      return callback(errorResponse);
     }
   }
-
   disconnect(socket, io) {
     // Xóa user khỏi danh sách quản lý
     this.users.delete(socket.id);
