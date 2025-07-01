@@ -105,7 +105,7 @@ const login = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production", // true nếu deploy production
       sameSite: "strict", // hoặc 'lax' tùy app
-      maxAge: 15 * 60 * 1000, // 1 phút
+      maxAge: 15 * 60 * 1000, // 15 phút
     });
     // Set refreshToken trong  cookie HttpOnly
     res.cookie("refreshToken", refreshToken, {

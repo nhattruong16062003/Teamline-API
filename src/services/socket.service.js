@@ -78,16 +78,29 @@ class SocketService {
   }
 
   async sendMessage(socket, io, { data }) {
+    console.log("da vao ham sendMessage");
     const chatId = data.roomId || null;
     const message = data.message || null;
     const toUserId = data.toUserId || null;
     const replyTo = data.replyTo || null;
+    const fileUrl = data.fileUrl || null;
+    const fileName = data.fileName || null;
+    const mimeType = data.mimeType || null;
+    const messageType = data?.messageType;
+    console.log("đã gọi được xuống hàm nay");
 
     let localChatId = null;
-    if (!message || typeof message !== "string" || message.trim() === "") {
-      console.log("Lỗi: Tin nhắn không hợp lệ", { chatId, message });
+    if (
+      (!message || typeof message !== "string" || message.trim() === "") &&
+      (!fileUrl || typeof fileUrl !== "string" || fileUrl.trim() === "")
+    ) {
+      console.log("Lỗi: Tin nhắn hoặc file không hợp lệ", {
+        chatId,
+        message,
+        fileUrl,
+      });
       socket.emit("send-error", {
-        message: "Tin nhắn không hợp lệ",
+        message: "Tin nhắn hoặc tệp không hợp lệ",
         localId: data.localId,
       });
       return;
@@ -148,8 +161,10 @@ class SocketService {
       const savedMessage = await Message.create({
         sender: userId,
         content: message,
-        type: "text",
-        fileUrl: null,
+        type: messageType,
+        fileUrl: fileUrl,
+        fileName: fileName,
+        mimeType: mimeType,
         replyTo: replyTo,
         reactions: [],
         seenBy: [],
@@ -201,6 +216,8 @@ class SocketService {
         localId: data.localId,
         messageId: savedMessage._id,
         localChatId: localChatId,
+        // fileName: savedMessage.fileName,
+        // mimeType: savedMessage.mimeType,
       });
     } catch (error) {
       console.error("Lỗi khi gửi tin nhắn:", error);
