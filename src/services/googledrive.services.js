@@ -1,6 +1,8 @@
 const { google } = require("googleapis");
 const stream = require("stream");
-require("dotenv").config(); // Đảm bảo đã dùng dotenv
+const fs = require("fs");
+const path = require("path");
+require("dotenv").config();
 
 const auth = new google.auth.GoogleAuth({
   keyFile: "teamline-462903-bca6f824cc99.json",
@@ -74,8 +76,57 @@ function getFileIdFromDriveUrl(url) {
   }
 }
 
+//viết hàm upload file lớn (video, file tài liệu)
+async function uploadLargeFile({
+  localPath,
+  fileName,
+  mimeType,
+  folderId = process.env.FILES_FOLDER_ID, // Có thể dùng cùng IMAGES_FOLDER_ID nếu bạn không tách riêng
+}) {
+  return new Promise((resolve, reject) => {
+    const fileStream = fs.createReadStream(localPath);
+
+    drive.files.create(
+      {
+        requestBody: {
+          name: fileName,
+          parents: [folderId],
+        },
+        media: {
+          mimeType,
+          body: fileStream,
+        },
+        fields: "id, name",
+      },
+      async (err, fileRes) => {
+        if (err) {
+          return reject(err);
+        }
+
+        const fileId = fileRes.data.id;
+
+        try {
+          await drive.permissions.create({
+            fileId,
+            requestBody: {
+              role: "reader",
+              type: "anyone",
+            },
+          });
+
+          const publicUrl = `https://drive.google.com/uc?id=${fileId}&export=download`;
+          resolve({ id: fileId, url: publicUrl });
+        } catch (permErr) {
+          reject(permErr);
+        }
+      }
+    );
+  });
+}
+
 module.exports = {
   uploadImageBuffer,
   deleteImageFromDrive,
   getFileIdFromDriveUrl,
+  uploadLargeFile,
 };
