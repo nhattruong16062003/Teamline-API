@@ -211,13 +211,12 @@ class SocketService {
         status: "saved",
         sentAt: savedMessage.createdAt,
         chatId: chat._id,
-        messageContent: savedMessage.content || savedMessage.fileUrl || null,
+        messageContent: savedMessage.content || savedMessage.fileName || null,
         messageSender: savedMessage.sender,
         localId: data.localId,
         messageId: savedMessage._id,
         localChatId: localChatId,
-        // fileName: savedMessage.fileName,
-        // mimeType: savedMessage.mimeType,
+        fileUrl: savedMessage.fileUrl,
       });
     } catch (error) {
       console.error("Lỗi khi gửi tin nhắn:", error);
