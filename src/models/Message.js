@@ -23,7 +23,6 @@ const messageSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
-
     replyTo: { type: mongoose.Schema.Types.ObjectId, ref: "Message" },
     reactions: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     seenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
