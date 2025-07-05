@@ -4,7 +4,7 @@ const Chat = require("../models/Chat");
 
 const {
   uploadImageBuffer,
-  deleteImageFromDrive,
+  deleteFileFromDrive,
   getFileIdFromDriveUrl,
 } = require("../services/googledrive.services");
 const updateUserInfo = async (req, res) => {
@@ -26,7 +26,7 @@ const updateUserInfo = async (req, res) => {
     if (avatarFile) {
       // Nếu có avatar cũ → xóa
       if (oldAvatarFileId) {
-        const deleted = await deleteImageFromDrive(oldAvatarFileId);
+        const deleted = await deleteFileFromDrive(oldAvatarFileId);
         if (!deleted) throw new Error("Failed to delete old avatar");
       }
 
@@ -43,7 +43,7 @@ const updateUserInfo = async (req, res) => {
     // Nếu người dùng chọn xóa avatar
     if (removeAvatar === "true") {
       if (oldAvatarFileId) {
-        const deleted = await deleteImageFromDrive(oldAvatarFileId);
+        const deleted = await deleteFileFromDrive(oldAvatarFileId);
         if (!deleted) throw new Error("Failed to delete avatar");
       }
       updateData.avatar = "";

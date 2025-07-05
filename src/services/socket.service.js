@@ -78,7 +78,6 @@ class SocketService {
   }
 
   async sendMessage(socket, io, { data }) {
-    console.log("da vao ham sendMessage");
     const chatId = data.roomId || null;
     const message = data.message || null;
     const toUserId = data.toUserId || null;
@@ -87,7 +86,6 @@ class SocketService {
     const fileName = data.fileName || null;
     const mimeType = data.mimeType || null;
     const messageType = data?.messageType;
-    console.log("đã gọi được xuống hàm nay");
 
     let localChatId = null;
     if (

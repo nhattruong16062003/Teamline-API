@@ -51,10 +51,9 @@ async function uploadImageBuffer({
   //   return `https://drive.google.com/uc?id=${fileId}&export=media`;
 }
 
-async function deleteImageFromDrive(fileId) {
+async function deleteFileFromDrive(fileId) {
   try {
     await drive.files.delete({ fileId });
-    console.log(`Đã xóa ảnh: ${fileId}`);
     return true;
   } catch (error) {
     console.error(`Lỗi khi xóa ảnh ${fileId}:`, error.message);
@@ -117,6 +116,7 @@ async function uploadLargeFile({
           const publicUrl = `https://drive.google.com/uc?id=${fileId}&export=download`;
           resolve({ id: fileId, url: publicUrl });
         } catch (permErr) {
+          const deleted = await deleteFileFromDrive(fileId);
           reject(permErr);
         }
       }
@@ -126,7 +126,7 @@ async function uploadLargeFile({
 
 module.exports = {
   uploadImageBuffer,
-  deleteImageFromDrive,
+  deleteFileFromDrive,
   getFileIdFromDriveUrl,
   uploadLargeFile,
 };
